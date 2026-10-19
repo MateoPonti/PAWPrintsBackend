@@ -125,8 +125,8 @@ Con `@page` definimos hoja A4 y márgenes de 2cm. Con `break-inside: avoid` evit
 Se necesita PHP 8.1 o superior y Composer.
 
 ```
-git clone https://github.com/Justibernal/pawprints.git
-cd pawprints
+git clone https://github.com/MateoPonti/PAWPrintsBackend.git
+cd PAWPrintsBackend
 composer install
 cp .env.example .env
 php -S localhost:8000 -t public public/index.php
