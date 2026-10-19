@@ -63,6 +63,37 @@ Para agregar una página: se crea el método en un controlador, la vista en `vie
 | GET | `/catalogo/{id}` | Detalle de un libro (404 si no existe) |
 | GET | `/reserva` | Formulario de reserva (`?libro={id}` lo deja preseleccionado) |
 
+#### Consulta del catálogo
+
+`/catalogo` recibe los filtros y la paginación por **GET**, en la query string
+(pares `clave=valor` codificados en la URL). Es una consulta idempotente que no
+modifica datos; la URL se puede guardar, compartir y recorrer con el historial del navegador.
+
+| Parámetro | Valores y comportamiento |
+|---|---|
+| `genero` | Coincidencia exacta: `novela`, `cuento`, `poesia` o `infantil`. Vacío: todos. |
+| `autor` | Parte del nombre, sin distinguir mayúsculas ni acentos. Vacío: todos. |
+| `precio_max` | Precio máximo inclusivo, entero mayor o igual a 0. Vacío o inválido: sin límite. |
+| `orden` | `relevancia` (orden de carga del JSON), `precio-asc`, `precio-desc` o `titulo` (A-Z, sin distinguir mayúsculas ni acentos). Por defecto o inválido: `relevancia`. |
+| `page` | Entero mayor o igual a 1. Por defecto: 1. |
+| `per_page` | 6, 12 o 24 libros por página. Ausente o inválido: `catalogo.per_page` de `config/config.php` (actualmente 6). |
+
+Ejemplo: `/catalogo?genero=novela&autor=garcia&precio_max=15000&orden=precio-asc&per_page=6&page=1`.
+Los filtros se combinan, el formulario conserva la selección y los enlaces de
+paginación mantienen los filtros y la cantidad por página. Al aplicar el formulario
+se vuelve a la primera página.
+
+Una página inválida (por ejemplo `page=abc`, `page=0` o `page=999`) responde **404**
+con «La página del catálogo no existe». Una búsqueda sin resultados responde **200**
+en la página 1, con «No encontramos libros con esos filtros» y «Mostrando 0-0 de 0 libros»;
+intentar otra página de esa búsqueda responde 404. Un libro inexistente en
+`/catalogo/{id}` sigue respondiendo 404.
+
+`LibroRepository::search(array $filtros): array` devuelve todos los libros filtrados
+y ordenados, **sin paginar**. Comparte las claves `genero`, `autor`, `precio_max`
+(entero o `null`) y `orden` con la consulta HTML para que la exportación CSV pueda
+reutilizarlo. La paginación se aplica después, en `CatalogoController::index`.
+
 ## Manual de identidad
 
 De las dos opciones que daba la consigna elegimos el manual Violeta.
@@ -94,14 +125,17 @@ Con `@page` definimos hoja A4 y márgenes de 2cm. Con `break-inside: avoid` evit
 Se necesita PHP 8.1 o superior y Composer.
 
 ```
-git clone https://github.com/Justibernal/pawprints.git
-cd pawprints
+git clone https://github.com/MateoPonti/PAWPrintsBackend.git
+cd PAWPrintsBackend
 composer install
 cp .env.example .env
 php -S localhost:8000 -t public public/index.php
 ```
 
 Y se entra a `http://localhost:8000`. En un servidor Apache el document root tiene que ser la carpeta `public/`.
+
+Las pruebas del filtrado y ordenamiento compartidos por HTML y CSV se ejecutan con
+`php tests/catalogo.php`, después de instalar las dependencias.
 
 Para ver la versión de celular alcanza con achicar la ventana o usar la vista adaptable del navegador (F12). Para ver la de impresión, la vista previa de impresión (Ctrl+P).
 
