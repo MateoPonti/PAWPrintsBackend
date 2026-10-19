@@ -379,3 +379,34 @@ footer p{
         padding: 2.5rem 2rem;
     }
 }
+
+/* Paginación del catálogo, con los colores del manual Violeta. */
+.paginacion{
+    margin-top: 1.5rem;
+}
+.paginacion ul{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .5rem;
+}
+.paginacion a, .paginacion span{
+    display: block;
+    padding: .5rem .75rem;
+    border: 1px solid var(--color-borde);
+    border-radius: .4rem;
+    text-align: center;
+    text-decoration: none;
+}
+.paginacion a:hover{
+    background: var(--color-secundario);
+}
+.paginacion [aria-current="page"]{
+    background: var(--color-principal);
+    color: var(--color-blanco);
+    font-weight: bold;
+}
+.paginacion [aria-disabled="true"]{
+    color: var(--color-texto-suave);
+    background: var(--color-secundario);
+}

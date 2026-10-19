@@ -58,5 +58,145 @@
     "resumen": "Una nouvelle fantástica narrada en segunda persona.",
     "descripcion": "Aura cuenta la historia de Felipe Montero, un joven historiador que acepta un trabajo en una vieja casa del centro de la Ciudad de México, donde nada es lo que parece.",
     "autor_bio": "Carlos Fuentes (1928-2012) fue un escritor mexicano, figura central del boom latinoamericano."
+  },
+  {
+    "id": "el-aleph",
+    "titulo": "El Aleph",
+    "autor": "Jorge Luis Borges",
+    "genero": "cuento",
+    "precio": 13100,
+    "resumen": "Relatos sobre el infinito, la identidad y los límites de la memoria.",
+    "descripcion": "El Aleph reúne cuentos en los que una mirada, un objeto o un encuentro abren preguntas sobre el universo y el paso del tiempo.",
+    "autor_bio": "Jorge Luis Borges (1899-1986) fue un escritor argentino, autor de cuentos, ensayos y poemas, y uno de los escritores más influyentes del siglo XX."
+  },
+  {
+    "id": "bestiario",
+    "titulo": "Bestiario",
+    "autor": "Julio Cortázar",
+    "genero": "cuento",
+    "precio": 11200,
+    "resumen": "Lo fantástico irrumpe en casas, viajes y rutinas cotidianas.",
+    "descripcion": "Bestiario reúne relatos como Casa tomada y Lejana, donde situaciones familiares se transforman lentamente en experiencias inquietantes.",
+    "autor_bio": "Julio Cortázar (1914-1984) fue un escritor argentino, referente del cuento fantástico y del boom latinoamericano."
+  },
+  {
+    "id": "el-llano-en-llamas",
+    "titulo": "El llano en llamas",
+    "autor": "Juan Rulfo",
+    "genero": "cuento",
+    "precio": 10400,
+    "resumen": "Voces del campo mexicano cuentan historias de pérdida y resistencia.",
+    "descripcion": "El llano en llamas presenta relatos atravesados por la pobreza, los conflictos y la vida rural, con una prosa breve y voces inolvidables.",
+    "autor_bio": "Juan Rulfo (1917-1986) fue un escritor y fotógrafo mexicano, autor de El llano en llamas y Pedro Páramo."
+  },
+  {
+    "id": "pedro-paramo",
+    "titulo": "Pedro Páramo",
+    "autor": "Juan Rulfo",
+    "genero": "novela",
+    "precio": 11800,
+    "resumen": "La búsqueda de un padre lleva a un pueblo habitado por recuerdos.",
+    "descripcion": "Juan Preciado llega a Comala buscando a su padre, Pedro Páramo, y descubre una historia fragmentada entre voces del presente y del pasado.",
+    "autor_bio": "Juan Rulfo (1917-1986) fue un escritor y fotógrafo mexicano, autor de El llano en llamas y Pedro Páramo."
+  },
+  {
+    "id": "la-invencion-de-morel",
+    "titulo": "La invención de Morel",
+    "autor": "Adolfo Bioy Casares",
+    "genero": "novela",
+    "precio": 12300,
+    "resumen": "Un fugitivo descubre una presencia inexplicable en una isla.",
+    "descripcion": "En una isla aparentemente desierta, un fugitivo observa a un grupo de visitantes y comienza a investigar una invención que altera su idea de la realidad.",
+    "autor_bio": "Adolfo Bioy Casares (1914-1999) fue un escritor argentino, reconocido por sus novelas y cuentos fantásticos."
+  },
+  {
+    "id": "veinte-poemas-de-amor",
+    "titulo": "Veinte poemas de amor y una canción desesperada",
+    "autor": "Pablo Neruda",
+    "genero": "poesia",
+    "precio": 8200,
+    "resumen": "Poemas sobre el amor, la naturaleza y la ausencia.",
+    "descripcion": "Este poemario recorre el encuentro amoroso y la nostalgia mediante imágenes del paisaje, el cuerpo y la memoria.",
+    "autor_bio": "Pablo Neruda (1904-1973) fue un poeta chileno, autor de Residencia en la tierra y Canto general."
+  },
+  {
+    "id": "desolacion",
+    "titulo": "Desolación",
+    "autor": "Gabriela Mistral",
+    "genero": "poesia",
+    "precio": 9100,
+    "resumen": "Una voz poética que explora el dolor, la ternura y la enseñanza.",
+    "descripcion": "Desolación reúne poemas sobre la pérdida, la infancia y la naturaleza, con una voz intensa y cercana a la experiencia cotidiana.",
+    "autor_bio": "Gabriela Mistral (1889-1957) fue una poeta y educadora chilena, figura central de la literatura latinoamericana."
+  },
+  {
+    "id": "languidez",
+    "titulo": "Languidez",
+    "autor": "Alfonsina Storni",
+    "genero": "poesia",
+    "precio": 7600,
+    "resumen": "Poemas que interrogan el deseo, la soledad y las convenciones sociales.",
+    "descripcion": "Languidez propone una mirada íntima y crítica sobre las relaciones y el lugar de la mujer, con imágenes que oscilan entre la melancolía y la rebeldía.",
+    "autor_bio": "Alfonsina Storni (1892-1938) fue una poeta y escritora argentina, autora de una obra marcada por la autonomía y la sensibilidad social."
+  },
+  {
+    "id": "los-heraldos-negros",
+    "titulo": "Los heraldos negros",
+    "autor": "César Vallejo",
+    "genero": "poesia",
+    "precio": 8800,
+    "resumen": "Versos sobre el sufrimiento humano, la familia y la memoria.",
+    "descripcion": "Los heraldos negros explora experiencias de dolor y arraigo mediante un lenguaje que anuncia la originalidad de la poesía de Vallejo.",
+    "autor_bio": "César Vallejo (1892-1938) fue un poeta peruano, autor de Trilce y una de las voces fundamentales de la poesía en español."
+  },
+  {
+    "id": "el-rayo-que-no-cesa",
+    "titulo": "El rayo que no cesa",
+    "autor": "Miguel Hernández",
+    "genero": "poesia",
+    "precio": 9400,
+    "resumen": "El amor y la pérdida se expresan en sonetos de gran intensidad.",
+    "descripcion": "El rayo que no cesa reúne poemas que enlazan deseo, dolor y naturaleza, e incluye la elegía dedicada a Ramón Sijé.",
+    "autor_bio": "Miguel Hernández (1910-1942) fue un poeta y dramaturgo español, reconocido por su poesía amorosa y social."
+  },
+  {
+    "id": "cuentos-de-la-selva",
+    "titulo": "Cuentos de la selva",
+    "autor": "Horacio Quiroga",
+    "genero": "infantil",
+    "precio": 7900,
+    "resumen": "Animales de la selva protagonizan aventuras de amistad y supervivencia.",
+    "descripcion": "Cuentos de la selva acerca a los lectores jóvenes a un mundo de animales y paisajes de Misiones, con historias de cooperación, peligro y aprendizaje.",
+    "autor_bio": "Horacio Quiroga (1878-1937) fue un escritor uruguayo cuya obra está estrechamente vinculada a la selva misionera."
+  },
+  {
+    "id": "el-principito",
+    "titulo": "El principito",
+    "autor": "Antoine de Saint-Exupéry",
+    "genero": "infantil",
+    "precio": 8500,
+    "resumen": "Un pequeño viajero comparte sus preguntas sobre la amistad y la vida.",
+    "descripcion": "Un aviador encuentra en el desierto a un niño llegado de otro planeta. Sus conversaciones invitan a mirar los vínculos y las cosas cotidianas de otra manera.",
+    "autor_bio": "Antoine de Saint-Exupéry (1900-1944) fue un escritor y aviador francés, autor de relatos inspirados en sus experiencias de vuelo."
+  },
+  {
+    "id": "dailan-kifki",
+    "titulo": "Dailan Kifki",
+    "autor": "María Elena Walsh",
+    "genero": "infantil",
+    "precio": 10700,
+    "resumen": "La llegada de un elefante transforma una casa en una aventura disparatada.",
+    "descripcion": "Cuando Dailan Kifki aparece en la puerta de una casa, sus nuevos amigos deben resolver una sucesión de problemas tan inesperados como divertidos.",
+    "autor_bio": "María Elena Walsh (1930-2011) fue una escritora, poeta y compositora argentina, creadora de canciones y libros para distintas generaciones."
+  },
+  {
+    "id": "cuentopos-de-gulubu",
+    "titulo": "Cuentopos de Gulubú",
+    "autor": "María Elena Walsh",
+    "genero": "infantil",
+    "precio": 9600,
+    "resumen": "Cuentos llenos de humor, juegos de palabras y personajes inesperados.",
+    "descripcion": "Cuentopos de Gulubú reúne historias breves donde la imaginación y el lenguaje crean situaciones absurdas para disfrutar leyendo en voz alta.",
+    "autor_bio": "María Elena Walsh (1930-2011) fue una escritora, poeta y compositora argentina, creadora de canciones y libros para distintas generaciones."
   }
 ]
