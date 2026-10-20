@@ -34,6 +34,23 @@ $menu = [
       <?php foreach ($menu as $key => [$path, $label]): ?>
         <li><a href="<?= e($view->url($path)) ?>"<?= $key === $current ? ' aria-current="page"' : '' ?>><?= e($label) ?></a></li>
       <?php endforeach; ?>
+      <?php if ($cuentasHabilitadas ?? false): ?>
+        <?php $usuario = isset($usuarioActual) ? $usuarioActual() : null; ?>
+        <?php if ($usuario === null): ?>
+          <li><a href="<?= e($view->url('/login')) ?>"<?= $current === 'login' ? ' aria-current="page"' : '' ?>>Ingresar</a></li>
+          <li><a href="<?= e($view->url('/registro')) ?>"<?= $current === 'registro' ? ' aria-current="page"' : '' ?>>Crear cuenta</a></li>
+        <?php else: ?>
+          <?php if ($usuario->esAdmin()): ?>
+            <li><a href="<?= e($view->url('/admin/libros/nuevo')) ?>"<?= $current === 'admin' ? ' aria-current="page"' : '' ?>>Cargar libro</a></li>
+          <?php endif; ?>
+          <li>
+            <form class="menu-sesion" action="<?= e($view->url('/logout')) ?>" method="post">
+              <input type="hidden" name="_csrf" value="<?= e($csrfToken()) ?>">
+              <button type="submit">Salir (<?= e($usuario->nombre) ?>)</button>
+            </form>
+          </li>
+        <?php endif; ?>
+      <?php endif; ?>
     </ul>
   </nav>
 

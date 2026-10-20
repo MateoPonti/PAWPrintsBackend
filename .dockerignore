@@ -1,0 +1,7 @@
+.git
+vendor
+.env
+logs/*
+!logs/.gitkeep
+tests
+PawPrints Wireframes.html

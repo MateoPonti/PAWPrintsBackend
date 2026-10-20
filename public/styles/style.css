@@ -430,3 +430,17 @@ footer p{
     font-size: .9rem;
     font-weight: 600;
 }
+
+/* Botón "Salir" del menú: el formulario no deja márgenes y el botón se ve como un ítem más */
+.menu-sesion{
+    margin: 0;
+}
+.menu-sesion button{
+    padding: .4rem 1rem;
+    font-size: .9rem;
+}
+textarea{
+    display: block;
+    width: 100%;
+    font-family: inherit;
+}
