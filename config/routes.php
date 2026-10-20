@@ -15,3 +15,6 @@ $router->get('/catalogo', [CatalogoController::class, 'index']);
 $router->get('/catalogo/{id}', [CatalogoController::class, 'show']);
 
 $router->get('/reserva', [ReservaController::class, 'form']);
+// POST: crea una reserva y manda un correo (no es idempotente) y los datos personales no quedan en la URL
+$router->post('/reserva', [ReservaController::class, 'store']);
+$router->get('/reserva/confirmada', [ReservaController::class, 'confirmada']);

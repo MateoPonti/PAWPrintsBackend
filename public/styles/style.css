@@ -410,3 +410,23 @@ footer p{
     color: var(--color-texto-suave);
     background: var(--color-secundario);
 }
+
+/* Errores del formulario de reserva. El manual no trae rojo: se marcan con el
+   violeta oscuro y un borde más grueso, y siempre van con un texto que explica el error. */
+.aviso-error{
+    border-left: 4px solid var(--color-principal-oscuro);
+    background: var(--color-secundario);
+    padding: .75rem 1rem;
+    border-radius: .4rem;
+    margin-bottom: 1.25rem;
+    font-weight: 600;
+}
+[aria-invalid="true"]{
+    border: 2px solid var(--color-principal-oscuro);
+}
+.error-campo{
+    display: block;
+    color: var(--color-principal-oscuro);
+    font-size: .9rem;
+    font-weight: 600;
+}

@@ -62,6 +62,8 @@ Para agregar una página: se crea el método en un controlador, la vista en `vie
 | GET | `/catalogo` | Listado del catálogo |
 | GET | `/catalogo/{id}` | Detalle de un libro (404 si no existe) |
 | GET | `/reserva` | Formulario de reserva (`?libro={id}` lo deja preseleccionado) |
+| POST | `/reserva` | Procesa la reserva: 422 con errores o 303 a la confirmación |
+| GET | `/reserva/confirmada` | Confirmación de la reserva |
 
 #### Consulta del catálogo
 
@@ -93,6 +95,62 @@ intentar otra página de esa búsqueda responde 404. Un libro inexistente en
 y ordenados, **sin paginar**. Comparte las claves `genero`, `autor`, `precio_max`
 (entero o `null`) y `orden` con la consulta HTML para que la exportación CSV pueda
 reutilizarlo. La paginación se aplica después, en `CatalogoController::index`.
+
+#### Formulario de reserva
+
+El formulario se envía por **POST** a `/reserva`. Usamos POST porque la reserva no es
+una consulta: tiene efectos (avisa al personal por correo) y no es idempotente, así que
+no tiene que repetirse si alguien recarga o vuelve a abrir el link. Además, los datos
+personales (nombre, correo y teléfono) no quedan en la URL, el historial ni los logs del servidor.
+
+Los datos viajan en el cuerpo con la codificación por defecto de los formularios,
+`application/x-www-form-urlencoded` (pares `clave=valor` separados por `&`, con los
+caracteres especiales codificados con `%`). Como se pueden pedir varios libros,
+los campos se llaman `libro[]` y `cantidad[]` y PHP los recibe como arrays: la
+posición `i` de los dos arrays es una fila de la reserva. Ejemplo de cuerpo:
+
+```
+nombre=Ana+P%C3%A9rez&email=ana%40mail.com&telefono=011+4444-5555&libro%5B%5D=rayuela&cantidad%5B%5D=2
+```
+
+Las validaciones del backend (`Models/ReservaValidator`) son las mismas que las del
+HTML. Los límites del HTML (`maxlength`, `pattern`, `min`, `max`) salen de las
+constantes de esa clase, así que si se cambia una regla cambia en los dos lados.
+
+| Campo | Regla (HTML y backend) |
+|---|---|
+| `nombre` | Obligatorio, hasta 100 caracteres (`required maxlength="100"`). El backend recorta los espacios de los extremos y rechaza saltos de línea, que un input de texto no puede enviar. |
+| `email` | Obligatorio y válido (`type="email"` + `pattern` que exige dominio con punto; en el backend, `FILTER_VALIDATE_EMAIL`). |
+| `telefono` | Opcional. Si viene: entre 6 y 20 caracteres entre números, espacios, `+`, `-`, `(` y `)` (`pattern="[0-9+ \(\)\-]{6,20}"`). |
+| `libro[]` | Al menos uno, y cada uno tiene que existir en el catálogo (`LibroRepository::find`). |
+| `cantidad[]` | Entero entre 1 y 10 (`min="1" max="10" step="1"`). |
+
+El `pattern` del teléfono tiene `(`, `)` y `-` escapados porque los navegadores
+compilan el atributo con el flag `v` de JavaScript, que no los acepta sin escapar
+dentro de `[ ]`. Con la versión anterior (`[0-9+ ()-]{6,20}`) el navegador
+descartaba el pattern y no validaba el teléfono.
+
+Respuestas:
+
+- **Con errores:** 422 (Unprocessable Content). Se vuelve a mostrar el formulario
+  con los datos cargados y el mensaje de cada error al lado del campo.
+- **Sin errores:** se registra la reserva en el log, se manda el correo y se
+  responde **303 See Other** a `/reserva/confirmada` (patrón Post/Redirect/Get).
+  Así, si se recarga la página de confirmación, el navegador hace un GET y no
+  reenvía el formulario.
+- **Si falla el envío del correo:** 503. El error queda en el log y al usuario se
+  le muestra un mensaje genérico, con el formulario completo para que pueda reintentar.
+
+El correo se envía con PHPMailer por SMTP a la dirección configurada. Se configura en el `.env`:
+
+| Variable | Uso |
+|---|---|
+| `MAIL_TO` | Dirección del personal que recibe las reservas |
+| `MAIL_FROM` / `MAIL_FROM_NAME` | Remitente del correo. El `Reply-To` es el correo del cliente, para responderle directamente. |
+| `SMTP_HOST` | Servidor SMTP. **Vacío (desarrollo):** no se envía nada y el correo completo queda en `logs/app.log`. |
+| `SMTP_PORT` | Puerto, normalmente 587 con `tls` o 465 con `ssl` |
+| `SMTP_USER` / `SMTP_PASS` | Credenciales. Con Gmail hay que usar una contraseña de aplicación. |
+| `SMTP_SECURE` | `tls` (STARTTLS), `ssl` (SMTPS) o vacío (sin cifrado, solo para pruebas locales) |
 
 ## Manual de identidad
 
@@ -135,7 +193,8 @@ php -S localhost:8000 -t public public/index.php
 Y se entra a `http://localhost:8000`. En un servidor Apache el document root tiene que ser la carpeta `public/`.
 
 Las pruebas del filtrado y ordenamiento compartidos por HTML y CSV se ejecutan con
-`php tests/catalogo.php`, después de instalar las dependencias.
+`php tests/catalogo.php`, y las de las validaciones de la reserva con `php tests/reserva.php`,
+después de instalar las dependencias.
 
 Para ver la versión de celular alcanza con achicar la ventana o usar la vista adaptable del navegador (F12). Para ver la de impresión, la vista previa de impresión (Ctrl+P).
 
