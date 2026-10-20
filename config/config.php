@@ -21,6 +21,17 @@ return [
         'level' => $env('LOG_LEVEL', 'info'),
     ],
 
+    // Base de datos PostgreSQL (Neon). Con DB_HOST vacío la app sigue usando data/libros.json
+    // (sin registro de usuarios ni alta de libros), como antes de agregar la base.
+    'db' => [
+        'host' => $env('DB_HOST', ''),
+        'port' => $env('DB_PORT', '5432'),
+        'name' => $env('DB_NAME', 'neondb'),
+        'user' => $env('DB_USER', 'postgres'),
+        'pass' => $env('DB_PASS', ''),
+        'sslmode' => $env('DB_SSLMODE', 'require'),
+    ],
+
     'catalogo' => [
         'data' => __DIR__ . '/../data/libros.json',
         'per_page' => 6,

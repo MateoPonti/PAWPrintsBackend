@@ -17,7 +17,7 @@ class CatalogoController extends Controller
     public function __construct(App $app)
     {
         parent::__construct($app);
-        $this->libros = new LibroRepository($app->config->get('catalogo.data'));
+        $this->libros = $app->libros();
     }
 
     public function index(Request $request): Response

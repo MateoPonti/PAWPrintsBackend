@@ -152,6 +152,53 @@ El correo se envía con PHPMailer por SMTP a la dirección configurada. Se confi
 | `SMTP_USER` / `SMTP_PASS` | Credenciales. Con Gmail hay que usar una contraseña de aplicación. |
 | `SMTP_SECURE` | `tls` (STARTTLS), `ssl` (SMTPS) o vacío (sin cifrado, solo para pruebas locales) |
 
+## Base de datos, cuentas de usuario y alta de libros
+
+El catálogo puede leer los libros de una base **PostgreSQL (Neon)** en lugar de `data/libros.json`. Si `DB_HOST` está vacío en el `.env`, el sitio funciona exactamente como antes (catálogo desde el JSON, sin cuentas ni alta de libros), así que cada integrante puede seguir trabajando sin base.
+
+| Qué | Dónde |
+|---|---|
+| Conexión PDO a Neon | `Core/Database` (la arma `App::pdo()`) |
+| Libros desde la base | `Models/LibroDbRepository`, que extiende `LibroRepository`: solo cambia de dónde salen los libros, el filtrado, orden y paginación son los mismos. `App::libros()` elige cuál usar. |
+| Sesión y token anti-CSRF | `Core/Auth` (cookie `HttpOnly`, `SameSite=Lax`, `Secure` con HTTPS). La sesión solo se abre si el visitante ya tiene cookie. |
+| Usuarios | `Models/Usuario`, `Models/UsuarioRepository`, `Controllers/AuthController`, vistas en `views/auth/` |
+| Alta de libros | `Controllers/AdminLibroController`, `Models/LibroValidator`, vista `views/admin/libro_nuevo.php` |
+| Tablas | `database/schema.sql` (`users`, `libros`) y `database/seed.sql` (los 20 libros del JSON) |
+
+URLs nuevas:
+
+| Método | URL | Qué hace |
+|---|---|---|
+| GET / POST | `/registro` | Crea una cuenta (siempre con rol `usuario`) e inicia sesión. 422 con errores, 303 al inicio. |
+| GET / POST | `/login` | Inicia sesión. Con datos incorrectos responde 422 sin revelar si el correo existe. |
+| POST | `/logout` | Cierra la sesión (303 al inicio). |
+| GET | `/admin/libros/nuevo` | Formulario de alta. Sin sesión redirige a `/login`; con un usuario que no es admin, 403. |
+| POST | `/admin/libros` | Guarda el libro (422 con errores, 303 al detalle del libro nuevo). |
+
+Todos los POST de cuentas y de alta llevan un token anti-CSRF (`_csrf`); sin él responden 403. El rol se consulta en la base en cada pedido. El `id` público de un libro sigue siendo el slug (`/catalogo/rayuela`): el de los libros nuevos se genera a partir del título (`El túnel` → `el-tunel`, y `-2`, `-3`... si ya existe).
+
+### Poner la base en marcha (Neon)
+
+1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros).
+2. Botón **Connect** → desactivar **Connection pooling** → copiar host, base, usuario y contraseña al `.env` (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`). En Render van como variables de entorno.
+3. En local hace falta la extensión `pdo_pgsql` de PHP (en XAMPP: descomentar `extension=pdo_pgsql` y `extension=pgsql` en `php.ini`). Con un Postgres local sin SSL, agregar `DB_SSLMODE=disable`.
+
+### Crear el primer administrador
+
+El registro público siempre crea usuarios con rol `usuario`. Para tener un admin, registrarse en `/registro` y ejecutar en el SQL Editor de Neon:
+
+```sql
+UPDATE users SET rol = 'admin' WHERE email = 'tu@email.com';
+```
+
+Después aparece **Cargar libro** en el menú.
+
+### Despliegue en Render
+
+El `Dockerfile` instala PHP 8.3 con Apache, `pdo_pgsql` y las dependencias de Composer, con `public/` como document root. En *Environment* cargar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require`, `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` (la URL de Render) y, para que lleguen las reservas, `MAIL_TO` y las variables `SMTP_*`.
+
+Las pruebas del alta de libros se ejecutan con `php tests/libro.php`.
+
 ## Manual de identidad
 
 De las dos opciones que daba la consigna elegimos el manual Violeta.
