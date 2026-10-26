@@ -16,4 +16,10 @@ class Usuario
     {
         return $this->rol === 'admin';
     }
+
+    // Forma del usuario en la API (nunca incluye la contraseña)
+    public function toArray(): array
+    {
+        return ['id' => $this->id, 'nombre' => $this->nombre, 'email' => $this->email, 'rol' => $this->rol];
+    }
 }

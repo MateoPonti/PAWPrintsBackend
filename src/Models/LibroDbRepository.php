@@ -33,7 +33,7 @@ class LibroDbRepository extends LibroRepository
                 'resumen' => $f['resumen'] ?? '',
                 'descripcion' => $f['descripcion'] ?? '',
                 'autor_bio' => $f['autor_bio'] ?? '',
-                'portada' => $f['imagen_url'] ?: 'img/placeholder.svg',
+                'portada' => $f['imagen_url'] ?? '',
             ]), $filas);
         }
         return $this->cache;

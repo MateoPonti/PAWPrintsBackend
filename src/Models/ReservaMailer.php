@@ -2,7 +2,6 @@
 
 namespace Paw\Models;
 
-use Paw\Core\View;
 use PHPMailer\PHPMailer\PHPMailer;
 use Psr\Log\LoggerInterface;
 
@@ -12,7 +11,6 @@ class ReservaMailer
 {
     public function __construct(
         private array $config,
-        private View $view,
         private LoggerInterface $logger,
     ) {
     }
@@ -21,7 +19,7 @@ class ReservaMailer
     public function enviar(Reserva $reserva): void
     {
         $asunto = 'Nueva reserva de ' . $reserva->nombre;
-        $cuerpo = $this->view->render('mail/reserva', ['reserva' => $reserva], null);
+        $cuerpo = self::cuerpo($reserva);
         $smtp = $this->config['smtp'];
 
         if ($smtp['host'] === '') {
@@ -58,5 +56,28 @@ class ReservaMailer
 
         $mail->send();
         $this->logger->info('Correo de reserva enviado a {to}', ['to' => $this->config['to']]);
+    }
+
+    // Cuerpo en texto plano del correo al personal
+    public static function cuerpo(Reserva $reserva): string
+    {
+        $lineas = [
+            'Se recibió una nueva reserva desde el sitio.',
+            '',
+            'Nombre: ' . $reserva->nombre,
+            'Correo: ' . $reserva->email,
+            'Teléfono: ' . ($reserva->telefono !== '' ? $reserva->telefono : '(no informado)'),
+            '',
+            'Libros:',
+        ];
+        foreach ($reserva->items as $item) {
+            $libro = $item['libro'];
+            $lineas[] = '- ' . $item['cantidad'] . ' x ' . $libro->titulo . ' (' . $libro->autor . ') - '
+                . $libro->precioFormateado() . ' c/u';
+        }
+        $lineas[] = '';
+        $lineas[] = 'Total estimado: ' . $reserva->totalFormateado();
+
+        return implode("\n", $lineas) . "\n";
     }
 }

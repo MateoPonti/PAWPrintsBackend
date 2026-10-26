@@ -6,10 +6,10 @@ use Paw\Core\App;
 use Paw\Core\HttpException;
 use Paw\Core\Request;
 use Paw\Core\Response;
+use Paw\Models\Libro;
 use Paw\Models\LibroRepository;
 
-// Catálogo de libros. Versión base: lista todos los libros y muestra el detalle de uno.
-// TODO (Parte 2): búsqueda por GET, paginación y cantidad por página.
+// Catálogo de libros: listado con filtros, orden y paginación, y detalle de un libro.
 class CatalogoController extends Controller
 {
     private LibroRepository $libros;
@@ -20,6 +20,7 @@ class CatalogoController extends Controller
         $this->libros = $app->libros();
     }
 
+    // GET /api/libros?genero=&autor=&precio_max=&orden=&page=&per_page=
     public function index(Request $request): Response
     {
         $texto = static function (string $clave, string $default = '') use ($request): string {
@@ -43,50 +44,42 @@ class CatalogoController extends Controller
             'options' => ['min_range' => 1],
         ]);
         if ($pagina === false) {
-            throw HttpException::notFound('La página del catálogo no existe');
+            throw HttpException::notFound('La página del catálogo no existe.');
         }
 
-        $porPagina = filter_var($request->query('per_page'), FILTER_VALIDATE_INT);
-        if (!in_array($porPagina, [6, 12, 24], true)) {
+        $porPagina = filter_var($request->query('per_page'), FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => (int) $this->app->config->get('catalogo.per_page_max')],
+        ]);
+        if ($porPagina === false) {
             $porPagina = (int) $this->app->config->get('catalogo.per_page');
         }
 
         $resultados = $this->libros->search($filtros);
         $total = count($resultados);
         // Una búsqueda vacía tiene una primera página válida.
-        $totalPaginas = max(1, (int) ceil($total / $porPagina));
-        if ($pagina > $totalPaginas) {
-            throw HttpException::notFound('La página del catálogo no existe');
+        $paginas = max(1, (int) ceil($total / $porPagina));
+        if ($pagina > $paginas) {
+            throw HttpException::notFound('La página del catálogo no existe.');
         }
 
-        $offset = ($pagina - 1) * $porPagina;
+        $enPagina = array_slice($resultados, ($pagina - 1) * $porPagina, $porPagina);
 
-        return $this->render('catalogo/index', [
-            'title' => 'Catálogo - PawPrints',
-            'description' => 'Catálogo completo de libros de PawPrints.',
-            'current' => 'catalogo',
-            'libros' => array_slice($resultados, $offset, $porPagina),
-            'filtros' => $filtros,
-            'pagina' => $pagina,
-            'porPagina' => $porPagina,
+        return $this->json([
+            'items' => array_map(static fn (Libro $libro): array => $libro->toArray(), $enPagina),
             'total' => $total,
-            'totalPaginas' => $totalPaginas,
-            'desde' => $total === 0 ? 0 : $offset + 1,
-            'hasta' => min($offset + $porPagina, $total),
+            'pagina' => $pagina,
+            'por_pagina' => $porPagina,
+            'paginas' => $paginas,
         ]);
     }
 
+    // GET /api/libros/{id}
     public function show(Request $request, string $id): Response
     {
         $libro = $this->libros->find($id);
         if ($libro === null) {
-            throw HttpException::notFound('El libro que buscás no está en el catálogo');
+            throw HttpException::notFound('El libro que buscás no está en el catálogo.');
         }
-        return $this->render('catalogo/show', [
-            'title' => $libro->titulo . ' - PawPrints',
-            'description' => $libro->resumen,
-            'current' => 'catalogo',
-            'libro' => $libro,
-        ]);
+        return $this->json(['libro' => $libro->toArray(true)]);
     }
 }

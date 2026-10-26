@@ -2,36 +2,32 @@
 
 namespace Paw\Core;
 
-// Encapsula la petición HTTP para que los controladores no lean $_GET, $_POST ni $_SERVER directamente.
+// Encapsula la petición HTTP para que los controladores no lean $_GET, php://input ni $_SERVER directamente.
+// El cuerpo de los POST es JSON (Content-Type: application/json).
 class Request
 {
+    private ?array $body = null;
+
     public function __construct(
         private string $method,
         private string $path,
         private array $query = [],
-        private array $body = [],
+        private string $rawBody = '',
         private array $server = [],
-        private string $basePath = '',
     ) {
     }
 
     public static function fromGlobals(): self
     {
-        // Si la app está en una subcarpeta (ej. /pawprints/public), se la saca del path
-        $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-        if ($basePath !== '' && str_starts_with($path, $basePath)) {
-            $path = substr($path, strlen($basePath));
-        }
         $path = '/' . trim($path, '/');
 
         return new self(
             strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'),
             $path,
             $_GET,
-            $_POST,
+            (string) file_get_contents('php://input'),
             $_SERVER,
-            $basePath,
         );
     }
 
@@ -45,11 +41,6 @@ class Request
         return $this->path;
     }
 
-    public function basePath(): string
-    {
-        return $this->basePath;
-    }
-
     // Parámetro de la query string (?clave=valor)
     public function query(string $key, mixed $default = null): mixed
     {
@@ -61,21 +52,60 @@ class Request
         return $this->query;
     }
 
-    // Campo del cuerpo de un POST (application/x-www-form-urlencoded)
+    // Campo del cuerpo JSON
     public function input(string $key, mixed $default = null): mixed
     {
-        return $this->body[$key] ?? $default;
+        return $this->allInput()[$key] ?? $default;
     }
 
+    /**
+     * Cuerpo JSON como array asociativo. Vacío si el pedido no trae cuerpo.
+     *
+     * @throws HttpException 400 si el cuerpo no es un objeto JSON válido
+     */
     public function allInput(): array
     {
-        return $this->body;
+        if ($this->body !== null) {
+            return $this->body;
+        }
+        if (trim($this->rawBody) === '') {
+            return $this->body = [];
+        }
+
+        $datos = json_decode($this->rawBody, true);
+        if (!is_array($datos) || ($datos !== [] && array_is_list($datos))) {
+            throw HttpException::badRequest('El cuerpo del pedido tiene que ser un objeto JSON válido.');
+        }
+        return $this->body = $datos;
     }
 
     public function header(string $name, ?string $default = null): ?string
     {
         $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
         return $this->server[$key] ?? $default;
+    }
+
+    public function origin(): ?string
+    {
+        return $this->header('Origin');
+    }
+
+    // Token del encabezado "Authorization: Bearer <token>", o null
+    public function bearerToken(): ?string
+    {
+        $cabecera = $this->header('Authorization') ?? ($this->server['REDIRECT_HTTP_AUTHORIZATION'] ?? null);
+        if ($cabecera === null && function_exists('apache_request_headers')) {
+            foreach (apache_request_headers() as $nombre => $valor) {
+                if (strtolower($nombre) === 'authorization') {
+                    $cabecera = $valor;
+                    break;
+                }
+            }
+        }
+        if (is_string($cabecera) && preg_match('/^Bearer\s+(\S+)$/i', trim($cabecera), $m) === 1) {
+            return $m[1];
+        }
+        return null;
     }
 
     public function ip(): string

@@ -4,39 +4,50 @@ namespace Paw\Controllers;
 
 use Paw\Core\App;
 use Paw\Core\HttpException;
-use Paw\Core\Request;
 use Paw\Core\Response;
+use Paw\Models\Usuario;
 
-// Base de todos los controladores: da acceso a la configuración, el logger y las vistas.
+// Base de todos los controladores: da acceso a la configuración, el logger y la autenticación.
 abstract class Controller
 {
     public function __construct(protected App $app)
     {
     }
 
-    protected function render(string $template, array $data = [], int $status = 200): Response
+    protected function json(mixed $datos, int $status = 200): Response
     {
-        return Response::html($this->app->view->render($template, $data), $status);
+        return Response::json($datos, $status);
     }
 
     // 503 si no hay base de datos configurada (las cuentas y el alta de libros la necesitan)
     protected function exigirBase(): void
     {
         if (!$this->app->dbConfigurada()) {
-            throw new HttpException(503, 'Esta función no está disponible: falta configurar la base de datos.');
+            throw HttpException::unavailable(
+                'Esta función no está disponible: falta configurar la base de datos.',
+                'base_no_configurada',
+            );
         }
     }
 
-    // Todo formulario POST que modifica datos tiene que traer el token que generó la sesión
-    protected function exigirCsrf(Request $request): void
+    // El usuario del token, o 401 si no hay token, es inválido, venció o el usuario ya no existe
+    protected function exigirUsuario(): Usuario
     {
-        if (!$this->app->auth->csrfValido($request->input('_csrf'))) {
-            throw new HttpException(403, 'El formulario venció. Volvé a cargar la página e intentá de nuevo.');
+        $this->exigirBase();
+        $usuario = $this->app->usuario();
+        if ($usuario === null) {
+            throw HttpException::unauthorized();
         }
+        return $usuario;
     }
 
-    protected function redirect(string $path, int $status = 302): Response
+    // 401 si no inició sesión, 403 si no es admin. El rol se consulta en la base en cada pedido.
+    protected function exigirAdmin(): Usuario
     {
-        return Response::redirect($this->app->view->url($path), $status);
+        $usuario = $this->exigirUsuario();
+        if (!$usuario->esAdmin()) {
+            throw HttpException::forbidden('No tenés permisos para cargar libros.');
+        }
+        return $usuario;
     }
 }

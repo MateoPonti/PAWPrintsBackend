@@ -2,44 +2,54 @@
 
 namespace Paw\Models;
 
-// Validaciones del formulario de reserva. Son las mismas que las de views/reserva/form.php:
-// la vista toma los límites de estas constantes, así que si se cambia una regla acá
-// cambia también el atributo del HTML.
+// Validaciones de la reserva. Son las mismas que las del formulario del front: los límites
+// (nombre, teléfono, cantidad) son los que ese formulario pone en sus atributos HTML.
+//
+// Los errores se devuelven por campo, con las claves que espera el front:
+// nombre, email, telefono, items.N.libro, items.N.cantidad e items (error general).
 class ReservaValidator
 {
-    public const NOMBRE_MAX = 100;                      // maxlength del nombre
-    // pattern del teléfono. Los navegadores lo compilan con el flag v de JavaScript, que
-    // exige escapar ( ) y - dentro de [ ]; sin escapar, el navegador ignoraba el pattern.
+    public const NOMBRE_MAX = 100;
     public const TELEFONO_PATRON = '[0-9+ \(\)\-]{6,20}';
-    public const CANTIDAD_MIN = 1;                      // min de cada cantidad
-    public const CANTIDAD_MAX = 10;                     // max de cada cantidad
+    public const CANTIDAD_MIN = 1;
+    public const CANTIDAD_MAX = 10;
+    public const ITEMS_MAX = 10;                        // filas (libros distintos) por reserva
 
     public function __construct(private LibroRepository $libros)
     {
     }
 
-    // Normaliza el cuerpo del POST: textos recortados y libro[] / cantidad[] como listas de strings.
+    // Normaliza el cuerpo JSON: textos recortados e items como lista de {libro, cantidad} en texto.
+    // Lo que no tenga la forma esperada queda vacío y lo rechaza validar().
     public static function valores(array $input): array
     {
         $texto = static fn (mixed $valor): string => is_string($valor) ? trim($valor) : '';
-        $lista = static fn (mixed $valor): array => match (true) {
-            $valor === null => [],
-            is_array($valor) => array_values(array_map($texto, $valor)),
-            default => [$texto($valor)],
-        };
+        // La cantidad puede venir como número (2) o como texto ("2")
+        $cantidad = static fn (mixed $valor): string => is_int($valor) ? (string) $valor : $texto($valor);
+
+        $items = [];
+        if (is_array($input['items'] ?? null)) {
+            foreach (array_values($input['items']) as $item) {
+                $item = is_array($item) ? $item : [];
+                $items[] = [
+                    'libro' => $texto($item['libro'] ?? ''),
+                    'cantidad' => $cantidad($item['cantidad'] ?? ''),
+                ];
+            }
+        }
 
         return [
             'nombre' => $texto($input['nombre'] ?? ''),
             'email' => $texto($input['email'] ?? ''),
             'telefono' => $texto($input['telefono'] ?? ''),
-            'libro' => $lista($input['libro'] ?? null),
-            'cantidad' => $lista($input['cantidad'] ?? null),
+            'items' => $items,
         ];
     }
 
     /**
      * Devuelve los mensajes de error por campo; vacío si la reserva es válida.
-     * Los de libro y cantidad son arrays indexados por fila.
+     *
+     * @return array<string, string>
      */
     public function validar(array $valores): array
     {
@@ -64,20 +74,26 @@ class ReservaValidator
             $errores['telefono'] = 'El teléfono debe tener entre 6 y 20 caracteres: números, espacios, +, -, ( y ).';
         }
 
-        $filas = max(count($valores['libro']), count($valores['cantidad']));
+        $filas = count($valores['items']);
         if ($filas === 0) {
-            $errores['libros'] = 'Elegí al menos un libro.';
+            $errores['items'] = 'Elegí al menos un libro.';
+            return $errores;
         }
-        for ($i = 0; $i < $filas; $i++) {
-            $id = $valores['libro'][$i] ?? '';
-            if ($id === '') {
-                $errores['libro'][$i] = 'Elegí un libro del catálogo.';
-            } elseif ($this->libros->find($id) === null) {
-                $errores['libro'][$i] = 'El libro elegido no está en el catálogo.';
+        if ($filas > self::ITEMS_MAX) {
+            // No se revisa fila por fila: así un pedido enorme no hace trabajo de más
+            $errores['items'] = 'Podés reservar hasta ' . self::ITEMS_MAX . ' libros por vez.';
+            return $errores;
+        }
+
+        foreach ($valores['items'] as $i => $item) {
+            if ($item['libro'] === '') {
+                $errores["items.$i.libro"] = 'Elegí un libro del catálogo.';
+            } elseif ($this->libros->find($item['libro']) === null) {
+                $errores["items.$i.libro"] = 'El libro elegido no está en el catálogo.';
             }
 
-            if (self::cantidad($valores['cantidad'][$i] ?? '') === null) {
-                $errores['cantidad'][$i] = 'Ingresá una cantidad entera entre '
+            if (self::cantidad($item['cantidad']) === null) {
+                $errores["items.$i.cantidad"] = 'Ingresá una cantidad entera entre '
                     . self::CANTIDAD_MIN . ' y ' . self::CANTIDAD_MAX . '.';
             }
         }
@@ -89,10 +105,10 @@ class ReservaValidator
     public function crear(array $valores): Reserva
     {
         $items = [];
-        foreach ($valores['libro'] as $i => $id) {
+        foreach ($valores['items'] as $item) {
             $items[] = [
-                'libro' => $this->libros->find($id),
-                'cantidad' => self::cantidad($valores['cantidad'][$i]),
+                'libro' => $this->libros->find($item['libro']),
+                'cantidad' => self::cantidad($item['cantidad']),
             ];
         }
         return new Reserva($valores['nombre'], $valores['email'], $valores['telefono'], $items);

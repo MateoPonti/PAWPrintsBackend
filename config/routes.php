@@ -1,33 +1,29 @@
 <?php
 
-// Mapa de URLs de la aplicación: método HTTP + ruta => [controlador, método].
-// $router lo provee Paw\Core\App.
+// Mapa de URLs de la API: método HTTP + ruta => [controlador, método].
+// $router lo provee Paw\Core\App. Todas las respuestas son JSON.
 
 use Paw\Controllers\AdminLibroController;
 use Paw\Controllers\AuthController;
 use Paw\Controllers\CatalogoController;
-use Paw\Controllers\PageController;
+use Paw\Controllers\InfoController;
 use Paw\Controllers\ReservaController;
 
-$router->get('/', [PageController::class, 'home']);
-$router->get('/nosotros', [PageController::class, 'nosotros']);
-$router->get('/contacto', [PageController::class, 'contacto']);
+// Estado del servicio (sirve como health check del hosting)
+$router->get('/', [InfoController::class, 'index']);
+$router->get('/api/health', [InfoController::class, 'health']);
 
-$router->get('/catalogo', [CatalogoController::class, 'index']);
-$router->get('/catalogo/{id}', [CatalogoController::class, 'show']);
+// Catálogo (público)
+$router->get('/api/libros', [CatalogoController::class, 'index']);
+$router->get('/api/libros/{id}', [CatalogoController::class, 'show']);
 
-$router->get('/reserva', [ReservaController::class, 'form']);
-// POST: crea una reserva y manda un correo (no es idempotente) y los datos personales no quedan en la URL
-$router->post('/reserva', [ReservaController::class, 'store']);
-$router->get('/reserva/confirmada', [ReservaController::class, 'confirmada']);
+// Reservas (público): crea la reserva y avisa al personal por correo
+$router->post('/api/reservas', [ReservaController::class, 'store']);
 
-// Cuentas de usuario. Los POST llevan token anti-CSRF (campo oculto _csrf).
-$router->get('/registro', [AuthController::class, 'registroForm']);
-$router->post('/registro', [AuthController::class, 'registro']);
-$router->get('/login', [AuthController::class, 'loginForm']);
-$router->post('/login', [AuthController::class, 'login']);
-$router->post('/logout', [AuthController::class, 'logout']);
+// Cuentas. El login devuelve un token que el front manda como "Authorization: Bearer <token>"
+$router->post('/api/registro', [AuthController::class, 'registro']);
+$router->post('/api/login', [AuthController::class, 'login']);
+$router->get('/api/me', [AuthController::class, 'me']);
 
 // Alta de libros: solo para usuarios con rol admin
-$router->get('/admin/libros/nuevo', [AdminLibroController::class, 'nuevo']);
-$router->post('/admin/libros', [AdminLibroController::class, 'store']);
+$router->post('/api/admin/libros', [AdminLibroController::class, 'store']);

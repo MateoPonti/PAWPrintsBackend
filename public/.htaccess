@@ -1,6 +1,10 @@
-# Apache: todo lo que no sea un archivo existente (CSS, imágenes) va al front controller
+# Apache: todo lo que no sea un archivo existente va al front controller
 Options -Indexes
 RewriteEngine On
+
+# Apache no le pasa a PHP el encabezado Authorization (el token) si no se le pide
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]

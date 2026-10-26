@@ -2,82 +2,56 @@
 
 namespace Paw\Core;
 
-// Sesión del usuario y token anti-CSRF. La sesión solo se abre cuando hace falta:
-// si el visitante no tiene cookie de sesión (no ingresó) no se toca la sesión ni la base.
+use Paw\Models\Usuario;
+
+// Autenticación por token (JWT). No hay sesión en el servidor ni cookies: el login devuelve un
+// token y el front lo manda en cada pedido como "Authorization: Bearer <token>".
+// El token solo dice quién es el usuario (sub); el rol se consulta en la base en cada pedido.
 class Auth
 {
-    public function __construct(private bool $https = false)
-    {
+    public const SECRETO_MIN = 32;
+
+    public function __construct(
+        private string $secreto,
+        private int $duracion = 28800,
+    ) {
     }
 
-    // Id del usuario que inició sesión, o null
-    public function userId(): ?int
+    public function configurada(): bool
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            if (!isset($_COOKIE[session_name()])) {
-                return null;
-            }
-            $this->start();
+        return strlen($this->secreto) >= self::SECRETO_MIN;
+    }
+
+    /** @return array{token: string, tipo: string, expira_en: int} expira_en = segundos de validez */
+    public function emitir(Usuario $usuario): array
+    {
+        if (!$this->configurada()) {
+            throw HttpException::unavailable(
+                'El ingreso no está disponible en este momento. Probá de nuevo más tarde.',
+                'auth_no_configurada',
+            );
         }
-        $id = $_SESSION['user_id'] ?? null;
-        return is_int($id) ? $id : null;
+
+        $ahora = time();
+        $token = Jwt::encode([
+            'iss' => 'pawprints',
+            'sub' => (string) $usuario->id,
+            'iat' => $ahora,
+            'exp' => $ahora + $this->duracion,
+        ], $this->secreto);
+
+        return ['token' => $token, 'tipo' => 'Bearer', 'expira_en' => $this->duracion];
     }
 
-    public function login(int $userId): void
+    // Id del usuario del token del pedido, o null si no hay token o no es válido
+    public function userId(Request $request): ?int
     {
-        $this->start();
-        session_regenerate_id(true); // evita fijación de sesión
-        $_SESSION['user_id'] = $userId;
-    }
-
-    public function logout(): void
-    {
-        $this->start();
-        $_SESSION = [];
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', [
-            'expires' => time() - 3600,
-            'path' => $params['path'],
-            'secure' => $params['secure'],
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
-        session_destroy();
-    }
-
-    // Token que va en un campo oculto de cada formulario que modifica datos
-    public function csrfToken(): string
-    {
-        $this->start();
-        if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf'])) {
-            $_SESSION['csrf'] = bin2hex(random_bytes(32));
+        $token = $request->bearerToken();
+        if ($token === null || !$this->configurada()) {
+            return null;
         }
-        return $_SESSION['csrf'];
-    }
-
-    public function csrfValido(mixed $token): bool
-    {
-        if (!is_string($token) || $token === '' || !isset($_COOKIE[session_name()])) {
-            return false;
-        }
-        $this->start();
-        $esperado = $_SESSION['csrf'] ?? null;
-        return is_string($esperado) && hash_equals($esperado, $token);
-    }
-
-    private function start(): void
-    {
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            return;
-        }
-        ini_set('session.use_strict_mode', '1');
-        session_set_cookie_params([
-            'lifetime' => 0,
-            'path' => '/',
-            'secure' => $this->https,
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
-        session_start();
+        $datos = Jwt::decode($token, $this->secreto);
+        $sub = $datos['sub'] ?? null;
+        return is_string($sub) && ctype_digit($sub) ? (int) $sub : null;
     }
 }

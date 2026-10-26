@@ -1,6 +1,6 @@
 <?php
 
-// Pruebas del alta de libros (LibroValidator) y de las reglas de las cuentas.
+// Pruebas del alta de libros (LibroValidator).
 // Ejecutar desde la raíz: php tests/libro.php
 
 use Paw\Models\LibroValidator;
@@ -27,6 +27,8 @@ $validar = static fn (array $cambios): array =>
 
 verificarCampos([], $validar([]), 'Libro válido con solo lo obligatorio');
 verificarCampos([], $validar(['imagen_url' => 'https://ejemplo.com/a.jpg']), 'Portada con URL https');
+verificarCampos([], LibroValidator::validar(LibroValidator::valores(array_merge($valido, ['precio' => 9000]))), 'Precio como número JSON');
+verificarCampos(['precio'], LibroValidator::validar(LibroValidator::valores(array_merge($valido, ['precio' => 90.5]))), 'Precio decimal JSON');
 verificarCampos(['titulo'], $validar(['titulo' => '   ']), 'Título solo con espacios');
 verificarCampos(['titulo'], $validar(['titulo' => str_repeat('a', LibroValidator::TITULO_MAX + 1)]), 'Título demasiado largo');
 verificarCampos(['autor'], $validar(['autor' => '']), 'Autor vacío');

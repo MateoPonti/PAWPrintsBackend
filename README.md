@@ -1,251 +1,160 @@
-# PAWPrints
+# PAWPrints - back-end (API)
 
-Sitio web de la librería PAWPrints. Trabajos prácticos de Programación en Ambiente Web (11086), Comisión 50, UNLu.
+API JSON de la librería PAWPrints. Trabajos prácticos de Programación en Ambiente Web (11086), Comisión 50, UNLu.
 
-Integrantes: Federico Kasparian, Justino Bernal , Lautaro Marino y Ponti Mateo. Los legajos están en `autores.txt` y la versión en `VERSION`.
+Integrantes: Federico Kasparian, Justino Bernal, Lautaro Marino y Ponti Mateo. Los legajos están en `autores.txt` y la versión en `VERSION`.
 
-## Enunciado
-
-Es un mismo proyecto que se va armando TP a TP.
-
-En el TP1 había que maquetar el sitio de una librería con tienda online y tienda física usando solo HTML5, sin CSS ni JavaScript. También se pedía el sitemap, los wireframes y un formulario de reserva de libros.
-
-En el TP2 había que agregar el CSS para que el maquetado se vea como los wireframes, siguiendo el manual de identidad de la empresa, y que funcione en celular, escritorio e impresión.
-
-En el TP3 había que servir el sitio con código dinámico siguiendo el patrón MVC: página de inicio con el menú, "Acerca de nosotros", catálogo con búsqueda, paginación y descarga en CSV, procesamiento del formulario de reserva con envío de correo, manejo de errores y publicación en Internet.
-
-## Arquitectura
-
-La aplicación está hecha en PHP sin framework, siguiendo MVC y con un único punto de entrada.
-
-```
-public/            Lo único accesible desde la web
-  index.php        Front controller: toda petición entra por acá
-  .htaccess        Redirige a index.php todo lo que no sea un archivo (Apache)
-  styles/ img/     Archivos estáticos
-config/
-  config.php       Configuración, toma los valores del .env
-  routes.php       Mapa de URLs a controladores
-src/
-  Core/            Infraestructura común (no sabe nada de libros ni reservas)
-  Controllers/     Controladores (C)
-  Models/          Modelos y acceso a datos (M)
-views/             Plantillas PHP (V), todas dentro de layout.php
-data/libros.json   "Base de datos" de libros hasta el próximo TP
-logs/              Registro de la aplicación (no se sube al repo)
-```
-
-Cómo se resuelve cada problemática:
-
-| Problemática | Dónde | PSR de referencia |
-|---|---|---|
-| Análisis de la petición HTTP | `Core/Request`: método, path, query string, cuerpo del POST y cabeceras. Los controladores no leen `$_GET`, `$_POST` ni `$_SERVER`. | PSR-7 (simplificado) |
-| Mapeo de URLs | `Core/Router` y `config/routes.php`. Soporta parámetros (`/catalogo/{id}`). Si la URL no existe responde 404 y si el método no corresponde, 405 con la cabecera `Allow`. | — |
-| Generación de la respuesta | `Core/Response`: código de estado, cabeceras y cuerpo. El controlador la devuelve y `index.php` la envía. | PSR-7 (simplificado) |
-| Generación de registros | `Core/FileLogger`, implementa `Psr\Log\LoggerInterface` y escribe en `logs/app.log`. El nivel mínimo se configura con `LOG_LEVEL`. | PSR-3 |
-| Persistencia | `Models/LibroRepository`: los controladores le piden los libros y no saben de dónde salen. Hoy lee un JSON; en el próximo TP se cambia por una base de datos sin tocar el resto. | — |
-| Configuración | `Core/Config` + `config/config.php`. Lo que cambia entre ambientes o es secreto (debug, mail, SMTP) va en `.env`, que no se sube; `.env.example` es la plantilla. | — |
-| Representaciones de la información | `Core/View` renderiza HTML con las plantillas de `views/`. Otros formatos (como el CSV del catálogo) se arman como una `Response` con su `Content-Type`. | — |
-| Errores | `Core/ErrorHandler` atrapa todo error y excepción, lo registra en el log y muestra una página de error. Con `APP_DEBUG=false` (producción) el usuario solo ve un mensaje genérico; el detalle queda en el log. | — |
-| Autoload | Composer, con el namespace `Paw\` apuntando a `src/`. | PSR-4 |
-| Estilo de código | — | PSR-12 |
-
-Para agregar una página: se crea el método en un controlador, la vista en `views/` y la ruta en `config/routes.php`.
-
-### URLs
-
-| Método | URL | Qué hace |
-|---|---|---|
-| GET | `/` | Inicio |
-| GET | `/nosotros` | Nuestra historia |
-| GET | `/contacto` | Contacto |
-| GET | `/catalogo` | Listado del catálogo |
-| GET | `/catalogo/{id}` | Detalle de un libro (404 si no existe) |
-| GET | `/reserva` | Formulario de reserva (`?libro={id}` lo deja preseleccionado) |
-| POST | `/reserva` | Procesa la reserva: 422 con errores o 303 a la confirmación |
-| GET | `/reserva/confirmada` | Confirmación de la reserva |
-
-#### Consulta del catálogo
-
-`/catalogo` recibe los filtros y la paginación por **GET**, en la query string
-(pares `clave=valor` codificados en la URL). Es una consulta idempotente que no
-modifica datos; la URL se puede guardar, compartir y recorrer con el historial del navegador.
-
-| Parámetro | Valores y comportamiento |
-|---|---|
-| `genero` | Coincidencia exacta: `novela`, `cuento`, `poesia` o `infantil`. Vacío: todos. |
-| `autor` | Parte del nombre, sin distinguir mayúsculas ni acentos. Vacío: todos. |
-| `precio_max` | Precio máximo inclusivo, entero mayor o igual a 0. Vacío o inválido: sin límite. |
-| `orden` | `relevancia` (orden de carga del JSON), `precio-asc`, `precio-desc` o `titulo` (A-Z, sin distinguir mayúsculas ni acentos). Por defecto o inválido: `relevancia`. |
-| `page` | Entero mayor o igual a 1. Por defecto: 1. |
-| `per_page` | 6, 12 o 24 libros por página. Ausente o inválido: `catalogo.per_page` de `config/config.php` (actualmente 6). |
-
-Ejemplo: `/catalogo?genero=novela&autor=garcia&precio_max=15000&orden=precio-asc&per_page=6&page=1`.
-Los filtros se combinan, el formulario conserva la selección y los enlaces de
-paginación mantienen los filtros y la cantidad por página. Al aplicar el formulario
-se vuelve a la primera página.
-
-Una página inválida (por ejemplo `page=abc`, `page=0` o `page=999`) responde **404**
-con «La página del catálogo no existe». Una búsqueda sin resultados responde **200**
-en la página 1, con «No encontramos libros con esos filtros» y «Mostrando 0-0 de 0 libros»;
-intentar otra página de esa búsqueda responde 404. Un libro inexistente en
-`/catalogo/{id}` sigue respondiendo 404.
-
-`LibroRepository::search(array $filtros): array` devuelve todos los libros filtrados
-y ordenados, **sin paginar**. Comparte las claves `genero`, `autor`, `precio_max`
-(entero o `null`) y `orden` con la consulta HTML para que la exportación CSV pueda
-reutilizarlo. La paginación se aplica después, en `CatalogoController::index`.
-
-#### Formulario de reserva
-
-El formulario se envía por **POST** a `/reserva`. Usamos POST porque la reserva no es
-una consulta: tiene efectos (avisa al personal por correo) y no es idempotente, así que
-no tiene que repetirse si alguien recarga o vuelve a abrir el link. Además, los datos
-personales (nombre, correo y teléfono) no quedan en la URL, el historial ni los logs del servidor.
-
-Los datos viajan en el cuerpo con la codificación por defecto de los formularios,
-`application/x-www-form-urlencoded` (pares `clave=valor` separados por `&`, con los
-caracteres especiales codificados con `%`). Como se pueden pedir varios libros,
-los campos se llaman `libro[]` y `cantidad[]` y PHP los recibe como arrays: la
-posición `i` de los dos arrays es una fila de la reserva. Ejemplo de cuerpo:
-
-```
-nombre=Ana+P%C3%A9rez&email=ana%40mail.com&telefono=011+4444-5555&libro%5B%5D=rayuela&cantidad%5B%5D=2
-```
-
-Las validaciones del backend (`Models/ReservaValidator`) son las mismas que las del
-HTML. Los límites del HTML (`maxlength`, `pattern`, `min`, `max`) salen de las
-constantes de esa clase, así que si se cambia una regla cambia en los dos lados.
-
-| Campo | Regla (HTML y backend) |
-|---|---|
-| `nombre` | Obligatorio, hasta 100 caracteres (`required maxlength="100"`). El backend recorta los espacios de los extremos y rechaza saltos de línea, que un input de texto no puede enviar. |
-| `email` | Obligatorio y válido (`type="email"` + `pattern` que exige dominio con punto; en el backend, `FILTER_VALIDATE_EMAIL`). |
-| `telefono` | Opcional. Si viene: entre 6 y 20 caracteres entre números, espacios, `+`, `-`, `(` y `)` (`pattern="[0-9+ \(\)\-]{6,20}"`). |
-| `libro[]` | Al menos uno, y cada uno tiene que existir en el catálogo (`LibroRepository::find`). |
-| `cantidad[]` | Entero entre 1 y 10 (`min="1" max="10" step="1"`). |
-
-El `pattern` del teléfono tiene `(`, `)` y `-` escapados porque los navegadores
-compilan el atributo con el flag `v` de JavaScript, que no los acepta sin escapar
-dentro de `[ ]`. Con la versión anterior (`[0-9+ ()-]{6,20}`) el navegador
-descartaba el pattern y no validaba el teléfono.
-
-Respuestas:
-
-- **Con errores:** 422 (Unprocessable Content). Se vuelve a mostrar el formulario
-  con los datos cargados y el mensaje de cada error al lado del campo.
-- **Sin errores:** se registra la reserva en el log, se manda el correo y se
-  responde **303 See Other** a `/reserva/confirmada` (patrón Post/Redirect/Get).
-  Así, si se recarga la página de confirmación, el navegador hace un GET y no
-  reenvía el formulario.
-- **Si falla el envío del correo:** 503. El error queda en el log y al usuario se
-  le muestra un mensaje genérico, con el formulario completo para que pueda reintentar.
-
-El correo se envía con PHPMailer por SMTP a la dirección configurada. Se configura en el `.env`:
-
-| Variable | Uso |
-|---|---|
-| `MAIL_TO` | Dirección del personal que recibe las reservas |
-| `MAIL_FROM` / `MAIL_FROM_NAME` | Remitente del correo. El `Reply-To` es el correo del cliente, para responderle directamente. |
-| `SMTP_HOST` | Servidor SMTP. **Vacío (desarrollo):** no se envía nada y el correo completo queda en `logs/app.log`. |
-| `SMTP_PORT` | Puerto, normalmente 587 con `tls` o 465 con `ssl` |
-| `SMTP_USER` / `SMTP_PASS` | Credenciales. Con Gmail hay que usar una contraseña de aplicación. |
-| `SMTP_SECURE` | `tls` (STARTTLS), `ssl` (SMTPS) o vacío (sin cifrado, solo para pruebas locales) |
-
-## Base de datos, cuentas de usuario y alta de libros
-
-El catálogo puede leer los libros de una base **PostgreSQL (Neon)** en lugar de `data/libros.json`. Si `DB_HOST` está vacío en el `.env`, el sitio funciona exactamente como antes (catálogo desde el JSON, sin cuentas ni alta de libros), así que cada integrante puede seguir trabajando sin base.
-
-| Qué | Dónde |
-|---|---|
-| Conexión PDO a Neon | `Core/Database` (la arma `App::pdo()`) |
-| Libros desde la base | `Models/LibroDbRepository`, que extiende `LibroRepository`: solo cambia de dónde salen los libros, el filtrado, orden y paginación son los mismos. `App::libros()` elige cuál usar. |
-| Sesión y token anti-CSRF | `Core/Auth` (cookie `HttpOnly`, `SameSite=Lax`, `Secure` con HTTPS). La sesión solo se abre si el visitante ya tiene cookie. |
-| Usuarios | `Models/Usuario`, `Models/UsuarioRepository`, `Controllers/AuthController`, vistas en `views/auth/` |
-| Alta de libros | `Controllers/AdminLibroController`, `Models/LibroValidator`, vista `views/admin/libro_nuevo.php` |
-| Tablas | `database/schema.sql` (`users`, `libros`) y `database/seed.sql` (los 20 libros del JSON) |
-
-URLs nuevas:
-
-| Método | URL | Qué hace |
-|---|---|---|
-| GET / POST | `/registro` | Crea una cuenta (siempre con rol `usuario`) e inicia sesión. 422 con errores, 303 al inicio. |
-| GET / POST | `/login` | Inicia sesión. Con datos incorrectos responde 422 sin revelar si el correo existe. |
-| POST | `/logout` | Cierra la sesión (303 al inicio). |
-| GET | `/admin/libros/nuevo` | Formulario de alta. Sin sesión redirige a `/login`; con un usuario que no es admin, 403. |
-| POST | `/admin/libros` | Guarda el libro (422 con errores, 303 al detalle del libro nuevo). |
-
-Todos los POST de cuentas y de alta llevan un token anti-CSRF (`_csrf`); sin él responden 403. El rol se consulta en la base en cada pedido. El `id` público de un libro sigue siendo el slug (`/catalogo/rayuela`): el de los libros nuevos se genera a partir del título (`El túnel` → `el-tunel`, y `-2`, `-3`... si ya existe).
-
-### Poner la base en marcha (Neon)
-
-1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros).
-2. Botón **Connect** → desactivar **Connection pooling** → copiar host, base, usuario y contraseña al `.env` (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`). En Render van como variables de entorno.
-3. En local hace falta la extensión `pdo_pgsql` de PHP (en XAMPP: descomentar `extension=pdo_pgsql` y `extension=pgsql` en `php.ini`). Con un Postgres local sin SSL, agregar `DB_SSLMODE=disable`.
-
-### Crear el primer administrador
-
-El registro público siempre crea usuarios con rol `usuario`. Para tener un admin, registrarse en `/registro` y ejecutar en el SQL Editor de Neon:
-
-```sql
-UPDATE users SET rol = 'admin' WHERE email = 'tu@email.com';
-```
-
-Después aparece **Cargar libro** en el menú.
-
-### Despliegue en Render
-
-El `Dockerfile` instala PHP 8.3 con Apache, `pdo_pgsql` y las dependencias de Composer, con `public/` como document root. En *Environment* cargar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require`, `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` (la URL de Render) y, para que lleguen las reservas, `MAIL_TO` y las variables `SMTP_*`.
-
-Las pruebas del alta de libros se ejecutan con `php tests/libro.php`.
-
-## Manual de identidad
-
-De las dos opciones que daba la consigna elegimos el manual Violeta.
-
-Los colores del manual son el violeta `#5c068c` y el blanco `#ffffff`. El violeta lo usamos en el nombre del sitio, los títulos, los enlaces, los botones y el pie; el blanco es el fondo y el texto que va sobre violeta.
-
-Como el manual solo trae esos dos colores, para el hover, los fondos suaves y los bordes usamos el mismo violeta más oscuro (`#400462`) o más claro (`#f2ebf6` y `#decde8`), así no agregamos colores que no sean de la marca. Para el texto usamos un gris oscuro porque el manual no fija uno.
-
-La tipografía del manual es Argentum Sans y la equivalente que indica es Montserrat. Cargamos Montserrat desde Google Fonts y dejamos Argentum Sans primera en la lista por si está instalada.
-
-Todo esto está definido una sola vez como variables en `:root`, al principio de `public/styles/style.css`.
-
-## Responsive
-
-Lo hicimos mobile first: el CSS base es el de celular, con todo en una columna, y las media queries agregan columnas cuando hay más ancho. A partir de 700px las fichas del catálogo, las promociones y los servicios pasan a dos columnas, y a partir de 1024px a tres. Elegimos esos anchos porque cada ficha necesita unos 300px para que la portada y el texto no queden apretados.
-
-Usamos grid para las grillas de fichas y flex para lo que va en fila y tiene que poder bajar de renglón (el menú, los filtros del catálogo y el pie). Por eso el menú no necesita botón hamburguesa. El `body` tiene un ancho máximo de 1200px para que en monitores grandes no quede todo estirado.
-
-## Impresión
-
-`public/styles/print.css` se enlaza con `media="print"` en todas las páginas.
-
-Al imprimir se oculta lo que en papel no sirve: el menú, las redes del pie, los botones y los filtros del catálogo. El nombre del sitio y todo el contenido se mantienen, incluido el formulario de reserva, que se puede imprimir para completar a mano. Se imprime en negro sobre blanco y sin fondos de color para no gastar tinta.
-
-Con `@page` definimos hoja A4 y márgenes de 2cm. Con `break-inside: avoid` evitamos que una ficha del catálogo, un grupo de campos o una tabla queden cortados entre dos hojas.
+Este proyecto es **solo la API**: no genera HTML. El sitio (HTML, CSS y JavaScript) está en el proyecto `Frontend`, que pide los datos a esta API con `fetch`. Hecha en PHP sin framework, con un único punto de entrada.
 
 ## Cómo ejecutar
 
-Se necesita PHP 8.1 o superior y Composer.
+Se necesita PHP 8.1 o superior (con `pdo_pgsql` si se usa la base) y Composer.
 
 ```
 git clone https://github.com/MateoPonti/PAWPrintsBackend.git
 cd PAWPrintsBackend
 composer install
-cp .env.example .env
+cp .env.example .env          # y completar JWT_SECRET (ver abajo)
 php -S localhost:8000 -t public public/index.php
 ```
 
-Y se entra a `http://localhost:8000`. En un servidor Apache el document root tiene que ser la carpeta `public/`.
+Probar: `http://localhost:8000/api/libros`. Para usarla con el sitio, levantar el front (`python3 -m http.server 5500` en su carpeta) y que el front apunte a `http://localhost:8000` (ver el README del front). Con `APP_ENV=development` se acepta cualquier puerto de localhost; si no, el origen del front tiene que estar en `FRONT_URL`.
 
-Las pruebas del filtrado y ordenamiento compartidos por HTML y CSV se ejecutan con
-`php tests/catalogo.php`, y las de las validaciones de la reserva con `php tests/reserva.php`,
-después de instalar las dependencias.
+En un servidor Apache el document root tiene que ser la carpeta `public/`.
 
-Para ver la versión de celular alcanza con achicar la ventana o usar la vista adaptable del navegador (F12). Para ver la de impresión, la vista previa de impresión (Ctrl+P).
+## Variables de entorno (`.env`)
 
-Se necesita internet para que cargue Montserrat. Sin conexión se ve con la fuente sans-serif del sistema.
+`.env` no se sube al repo; `.env.example` es la plantilla. En Render las mismas variables se cargan en *Environment*.
+
+| Variable | Uso |
+|---|---|
+| `APP_ENV`, `APP_DEBUG` | `development` / `true` agrega el campo `detalle` a los errores 500. En producción: `production` / `false`. |
+| `FRONT_URL` | Orígenes desde los que el navegador puede usar la API (CORS): la dirección donde se publica el front, sin barra final. Varios, separados por coma. **Si falta el del front publicado, el navegador bloquea todos los pedidos.** |
+| `JWT_SECRET` | Clave con la que se firman los tokens. **Obligatoria para ingresar**, mínimo 32 caracteres. Generar una distinta para producción: `php -r "echo bin2hex(random_bytes(32));"`. |
+| `JWT_TTL` | Segundos de validez del token (por defecto 28800, 8 horas). |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE` | Base PostgreSQL (Neon). Con `DB_HOST` vacío el catálogo sale de `data/libros.json`, sin cuentas ni alta de libros. |
+| `MAIL_TO`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMTP_*` | Aviso por correo de cada reserva. Con `SMTP_HOST` vacío no se envía nada y el correo queda en `logs/app.log`. |
+| `LOG_LEVEL` | Nivel mínimo del log. |
+
+## Arquitectura
+
+```
+public/
+  index.php        Front controller: toda petición entra por acá
+  .htaccess        Redirige todo a index.php y le pasa a PHP el encabezado Authorization (Apache)
+config/
+  config.php       Configuración, toma los valores del .env
+  routes.php       Mapa de URLs a controladores
+src/
+  Core/            Infraestructura común (no sabe nada de libros ni reservas)
+  Controllers/     Un método por endpoint
+  Models/          Libros, usuarios, reservas, validaciones y acceso a datos
+data/libros.json   Catálogo de respaldo cuando no hay base
+database/          schema.sql y seed.sql (los 20 libros)
+logs/              Registro de la aplicación (no se sube al repo)
+tests/             Pruebas (php tests/<archivo>.php)
+```
+
+| Problemática | Dónde |
+|---|---|
+| Petición HTTP | `Core/Request`: método, path, query string, cuerpo JSON, cabeceras y token Bearer. Los controladores no leen `$_GET` ni `$_SERVER`. |
+| Mapeo de URLs | `Core/Router` y `config/routes.php`. Parámetros (`/api/libros/{id}`), 404 y 405 con `Allow`. |
+| Respuesta | `Core/Response::json()`. Todas las respuestas, también los errores, son JSON. |
+| Errores | `Core/ErrorHandler` + `Core/HttpException`: todo error se registra en el log y sale como `{"error", "mensaje", "errores"}`. En producción el 500 es un mensaje genérico. |
+| Autenticación | `Core/Auth` + `Core/Jwt`: token JWT (HS256) en `Authorization: Bearer <token>`. Sin sesión ni cookies, así que no hace falta CSRF. El rol se consulta en la base en cada pedido. |
+| CORS | `Core/Cors`: responde el preflight (`OPTIONS`) y autoriza solo los orígenes de `FRONT_URL`. |
+| Persistencia | `Models/LibroRepository` (JSON) y `Models/LibroDbRepository` (Neon); `App::libros()` elige. Los controladores no saben de dónde salen los libros. |
+| Logs | `Core/FileLogger` (PSR-3) en `logs/app.log`. |
+| Autoload | Composer, namespace `Paw\` apuntando a `src/` (PSR-4). |
+
+## Contrato de la API
+
+Los errores tienen siempre la forma `{"error": "codigo", "mensaje": "...", "errores": {"campo": "mensaje"}}` (`errores` solo en los 422). Los pedidos con cuerpo mandan JSON (`Content-Type: application/json`); un cuerpo que no es un objeto JSON válido responde 400.
+
+| Método y ruta | Acceso | Cuerpo / parámetros | Respuesta |
+|---|---|---|---|
+| `GET /` y `GET /api/health` | público | - | `{estado: "ok", ...}`. No tocan la base: sirven de health check. |
+| `GET /api/libros` | público | `genero`, `autor`, `precio_max`, `orden`, `page`, `per_page` | `{items, total, pagina, por_pagina, paginas}`. 404 si `page` supera `paginas`. |
+| `GET /api/libros/{id}` | público | `id` = slug | `{libro}` o 404 |
+| `POST /api/reservas` | público | `{nombre, email, telefono, items: [{libro, cantidad}]}` | `201 {reserva}`, 422 con errores o 503 si falla el correo |
+| `POST /api/registro` | público | `nombre`, `email`, `password`, `password_confirm` | `201 {usuario}`, 422 con errores. No inicia sesión. |
+| `POST /api/login` | público | `email`, `password` | `{token, tipo, expira_en, usuario}` o 422 con `mensaje` |
+| `GET /api/me` | token | - | `{usuario}` o 401 |
+| `POST /api/admin/libros` | admin | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
+
+Códigos: 400 cuerpo inválido, 401 sin token o token vencido, 403 sin permisos, 404 no existe, 405 método no permitido, 422 datos inválidos, 503 función no disponible (sin base de datos, base caída, falló el correo o falta `JWT_SECRET`).
+
+### Catálogo
+
+`GET /api/libros` recibe los filtros y la paginación por query string:
+
+| Parámetro | Valores y comportamiento |
+|---|---|
+| `genero` | Coincidencia exacta: `novela`, `cuento`, `poesia` o `infantil`. Vacío: todos. |
+| `autor` | Parte del nombre, sin distinguir mayúsculas ni acentos. |
+| `precio_max` | Precio máximo inclusivo, entero mayor o igual a 0. Vacío o inválido: sin límite. |
+| `orden` | `relevancia` (orden de carga), `precio-asc`, `precio-desc` o `titulo`. Inválido: `relevancia`. |
+| `page` | Entero mayor o igual a 1. Por defecto 1. Inválido o fuera de rango: 404. |
+| `per_page` | De 1 a 100. Ausente o inválido: 6. |
+
+Cada libro del listado es `{id, titulo, autor, genero, precio, resumen, portada}`; el detalle agrega `descripcion` y `autor_bio`. `portada` es la URL de la imagen, o vacío si el libro no tiene (el front muestra su imagen por defecto). Una búsqueda sin resultados responde 200 con `total: 0` y `paginas: 1`.
+
+### Reservas
+
+Las validaciones son las mismas que las del formulario del front. Las claves de `errores` son `nombre`, `email`, `telefono`, `items.N.libro`, `items.N.cantidad` (N = posición de la fila, desde 0) e `items` (error general).
+
+| Campo | Regla |
+|---|---|
+| `nombre` | Obligatorio, hasta 100 caracteres, sin caracteres de control. |
+| `email` | Obligatorio y válido. |
+| `telefono` | Opcional. Si viene: entre 6 y 20 caracteres entre números, espacios, `+`, `-`, `(` y `)`. |
+| `items` | De 1 a 10 filas. Cada `libro` tiene que existir en el catálogo y cada `cantidad` es un entero de 1 a 10. |
+
+La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo, cantidad, precio}], total}}`. Si falla el envío del correo responde 503 y el detalle queda en el log.
+
+### Cuentas
+
+- La contraseña tiene de 8 a 72 caracteres, con al menos una letra y un número. Se guarda con `password_hash`.
+- El registro siempre crea usuarios con rol `usuario`. El login con datos incorrectos responde 422 con el mismo mensaje exista o no el correo.
+- El token dura `JWT_TTL` segundos (`expira_en` es esa cantidad). Cerrar sesión es descartarlo en el front.
+- Si el usuario ya no existe, o el token venció o fue alterado, los endpoints con token responden 401.
+
+## Base de datos (Neon)
+
+1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros).
+2. Botón **Connect** → desactivar **Connection pooling** → copiar host, base, usuario y contraseña al `.env` (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
+3. En local hace falta la extensión `pdo_pgsql` de PHP (en XAMPP: descomentar `extension=pdo_pgsql` y `extension=pgsql` en `php.ini`). Con un Postgres local sin SSL, agregar `DB_SSLMODE=disable`.
+
+### Crear el primer administrador
+
+Registrarse con `POST /api/registro` (o desde la pantalla de registro del front) y ejecutar en el SQL Editor de Neon:
+
+```sql
+UPDATE users SET rol = 'admin' WHERE email = 'tu@email.com';
+```
+
+Después, al ingresar de nuevo, el front muestra **Cargar libro**.
+
+## Despliegue en Render
+
+El `Dockerfile` instala PHP 8.3 con Apache, `pdo_pgsql` y las dependencias de Composer, con `public/` como document root. En *Environment* cargar:
+
+`APP_ENV=production`, `APP_DEBUG=false`, `FRONT_URL` (donde está publicado el front), `JWT_SECRET` (distinto al de local), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require` y, para que lleguen las reservas, `MAIL_TO` y las variables `SMTP_*`.
+
+Como *Health Check Path* se puede usar `/api/health`. En el plan gratuito el servicio se duerme tras un rato sin pedidos y el primero tarda en responder; el front avisa que el servidor no respondió y ofrece reintentar.
+
+## Pruebas
+
+Después de `composer install`:
+
+```
+php tests/catalogo.php   # filtrado y orden del catálogo
+php tests/reserva.php    # validaciones de la reserva
+php tests/libro.php      # validaciones del alta de libros
+php tests/jwt.php        # token de acceso
+php tests/cors.php       # orígenes permitidos
+php tests/api.php        # la API completa, sin servidor, base ni SMTP
+```
 
 ## Versiones
 

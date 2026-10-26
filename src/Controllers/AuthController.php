@@ -2,13 +2,14 @@
 
 namespace Paw\Controllers;
 
+use Paw\Core\HttpException;
 use Paw\Core\Request;
 use Paw\Core\Response;
 use Paw\Models\UsuarioRepository;
 use PDOException;
 
-// Registro, ingreso y salida de usuarios. La sesión es del servidor (cookie HttpOnly) y todos los
-// POST llevan token anti-CSRF. El registro siempre crea usuarios con rol 'usuario'.
+// Registro, ingreso y datos del usuario actual. No hay sesión en el servidor: el login devuelve un token
+// (JWT) y salir es descartarlo en el front. El registro siempre crea usuarios con rol 'usuario'.
 class AuthController extends Controller
 {
     public const NOMBRE_MAX = 80;
@@ -16,32 +17,22 @@ class AuthController extends Controller
     public const PASSWORD_MIN = 8;
     public const PASSWORD_MAX = 72; // límite de bcrypt
 
-    public function registroForm(Request $request): Response
-    {
-        $this->exigirBase();
-        if ($this->app->usuario() !== null) {
-            return $this->redirect('/');
-        }
-        return $this->renderRegistro(['nombre' => '', 'email' => ''], []);
-    }
-
+    // POST /api/registro {nombre, email, password, password_confirm} -> 201 {usuario}
     public function registro(Request $request): Response
     {
         $this->exigirBase();
-        $this->exigirCsrf($request);
 
         $texto = static fn (mixed $v): string => is_string($v) ? trim($v) : '';
-        $valores = ['nombre' => $texto($request->input('nombre')), 'email' => mb_strtolower($texto($request->input('email')))];
+        $nombre = $texto($request->input('nombre'));
+        $email = mb_strtolower($texto($request->input('email')));
         $password = is_string($request->input('password')) ? $request->input('password') : '';
         $confirmar = is_string($request->input('password_confirm')) ? $request->input('password_confirm') : '';
 
         $errores = [];
-        if ($valores['nombre'] === '' || mb_strlen($valores['nombre']) > self::NOMBRE_MAX
-            || preg_match('/^\P{Cc}*$/u', $valores['nombre']) !== 1) {
+        if ($nombre === '' || mb_strlen($nombre) > self::NOMBRE_MAX || preg_match('/^\P{Cc}*$/u', $nombre) !== 1) {
             $errores['nombre'] = 'Ingresá tu nombre (hasta ' . self::NOMBRE_MAX . ' caracteres).';
         }
-        if ($valores['email'] === '' || strlen($valores['email']) > self::EMAIL_MAX
-            || filter_var($valores['email'], FILTER_VALIDATE_EMAIL) === false) {
+        if ($email === '' || strlen($email) > self::EMAIL_MAX || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             $errores['email'] = 'Ingresá un correo electrónico válido, por ejemplo nombre@dominio.com.';
         }
         if (strlen($password) < self::PASSWORD_MIN || strlen($password) > self::PASSWORD_MAX) {
@@ -52,37 +43,27 @@ class AuthController extends Controller
             $errores['password_confirm'] = 'Las contraseñas no coinciden.';
         }
         if ($errores !== []) {
-            return $this->renderRegistro($valores, $errores, 422);
+            throw HttpException::invalid($errores);
         }
 
         $usuarios = new UsuarioRepository($this->app->pdo());
         try {
-            $id = $usuarios->crear($valores['nombre'], $valores['email'], password_hash($password, PASSWORD_DEFAULT));
+            $id = $usuarios->crear($nombre, $email, password_hash($password, PASSWORD_DEFAULT));
         } catch (PDOException $e) {
             if ($e->getCode() !== '23505') { // 23505 = unique_violation: el email ya tiene cuenta
                 throw $e;
             }
-            return $this->renderRegistro($valores, ['email' => 'Ese correo ya tiene una cuenta. Ingresá o usá otro.'], 422);
+            throw HttpException::invalid(['email' => 'Ese correo ya tiene una cuenta. Ingresá o usá otro.']);
         }
 
-        $this->app->iniciarSesion($usuarios->find($id));
-        $this->app->logger->info('Usuario registrado: {email}', ['email' => $valores['email']]);
-        return $this->redirect('/', 303);
+        $this->app->logger->info('Usuario registrado: {email}', ['email' => $email]);
+        return $this->json(['usuario' => $usuarios->find($id)->toArray()], 201);
     }
 
-    public function loginForm(Request $request): Response
-    {
-        $this->exigirBase();
-        if ($this->app->usuario() !== null) {
-            return $this->redirect('/');
-        }
-        return $this->renderLogin('', null);
-    }
-
+    // POST /api/login {email, password} -> {token, tipo, expira_en, usuario}
     public function login(Request $request): Response
     {
         $this->exigirBase();
-        $this->exigirCsrf($request);
 
         $email = mb_strtolower(is_string($request->input('email')) ? trim($request->input('email')) : '');
         $password = is_string($request->input('password')) ? $request->input('password') : '';
@@ -98,40 +79,16 @@ class AuthController extends Controller
 
         if (!$ok) {
             $this->app->logger->warning('Ingreso fallido para {email} desde {ip}', ['email' => $email, 'ip' => $request->ip()]);
-            return $this->renderLogin($email, 'El correo o la contraseña no son correctos.', 422);
+            throw new HttpException(422, 'El correo o la contraseña no son correctos.', 'credenciales_invalidas');
         }
 
-        $this->app->iniciarSesion($encontrado[0]);
-        return $this->redirect('/', 303);
+        $usuario = $encontrado[0];
+        return $this->json($this->app->auth->emitir($usuario) + ['usuario' => $usuario->toArray()]);
     }
 
-    public function logout(Request $request): Response
+    // GET /api/me (con token) -> {usuario}
+    public function me(Request $request): Response
     {
-        $this->exigirBase();
-        $this->exigirCsrf($request);
-        $this->app->cerrarSesion();
-        return $this->redirect('/', 303);
-    }
-
-    private function renderRegistro(array $valores, array $errores, int $status = 200): Response
-    {
-        return $this->render('auth/registro', [
-            'title' => 'Crear cuenta - PawPrints',
-            'description' => 'Creá tu cuenta en PawPrints.',
-            'current' => 'registro',
-            'valores' => $valores,
-            'errores' => $errores,
-        ], $status);
-    }
-
-    private function renderLogin(string $email, ?string $aviso, int $status = 200): Response
-    {
-        return $this->render('auth/login', [
-            'title' => 'Ingresar - PawPrints',
-            'description' => 'Ingresá a tu cuenta de PawPrints.',
-            'current' => 'login',
-            'email' => $email,
-            'aviso' => $aviso,
-        ], $status);
+        return $this->json(['usuario' => $this->exigirUsuario()->toArray()]);
     }
 }

@@ -3,30 +3,49 @@
 namespace Paw\Core;
 
 // Respuesta HTTP: código de estado, cabeceras y cuerpo. Se arma en el controlador y la envía el front controller.
+// Toda la API responde JSON.
 class Response
 {
     public function __construct(
         private string $body = '',
         private int $status = 200,
-        private array $headers = ['Content-Type' => 'text/html; charset=UTF-8'],
+        private array $headers = [],
     ) {
     }
 
-    public static function html(string $body, int $status = 200): self
+    public static function json(mixed $data, int $status = 200): self
     {
-        return new self($body, $status);
+        $body = json_encode(
+            $data,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR,
+        );
+
+        return new self($body === false ? '{}' : $body, $status, [
+            'Content-Type' => 'application/json; charset=UTF-8',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
-    // Redirección. Para después de procesar un POST se usa 303 (patrón Post/Redirect/Get).
-    public static function redirect(string $location, int $status = 302): self
+    // Respuesta sin cuerpo (204)
+    public static function empty(int $status = 204): self
     {
-        return new self('', $status, ['Location' => $location]);
+        return new self('', $status);
     }
 
     public function withHeader(string $name, string $value): self
     {
         $clone = clone $this;
         $clone->headers[$name] = $value;
+        return $clone;
+    }
+
+    /** @param array<string, string> $headers */
+    public function withHeaders(array $headers): self
+    {
+        $clone = clone $this;
+        foreach ($headers as $name => $value) {
+            $clone->headers[$name] = $value;
+        }
         return $clone;
     }
 

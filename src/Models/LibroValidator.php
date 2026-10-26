@@ -2,8 +2,8 @@
 
 namespace Paw\Models;
 
-// Validaciones del alta de libros. views/admin/libro_nuevo.php toma los límites de estas
-// constantes, así que el HTML (maxlength, min, max) y el backend validan lo mismo.
+// Validaciones del alta de libros. Los límites son los mismos que usa el formulario del front
+// (maxlength, min, max), así que los dos lados validan lo mismo.
 class LibroValidator
 {
     public const TITULO_MAX = 150;
@@ -16,14 +16,17 @@ class LibroValidator
     public const IMAGEN_URL_MAX = 255;
     public const GENEROS = ['novela' => 'Novela', 'cuento' => 'Cuento', 'poesia' => 'Poesía', 'infantil' => 'Infantil'];
 
-    // Normaliza el cuerpo del POST: todos los campos son texto recortado
+    // Normaliza el cuerpo JSON: todos los campos quedan como texto recortado.
+    // Lo que no sea texto se toma como vacío; el precio también puede venir como número entero.
     public static function valores(array $input): array
     {
         $texto = static fn (mixed $v): string => is_string($v) ? trim($v) : '';
         $valores = [];
-        foreach (['titulo', 'autor', 'genero', 'precio', 'resumen', 'descripcion', 'autor_bio', 'imagen_url'] as $campo) {
+        foreach (['titulo', 'autor', 'genero', 'resumen', 'descripcion', 'autor_bio', 'imagen_url'] as $campo) {
             $valores[$campo] = $texto($input[$campo] ?? '');
         }
+        $precio = $input['precio'] ?? '';
+        $valores['precio'] = is_int($precio) ? (string) $precio : $texto($precio);
         return $valores;
     }
 

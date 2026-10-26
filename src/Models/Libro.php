@@ -13,7 +13,8 @@ class Libro
         public readonly string $resumen,
         public readonly string $descripcion,
         public readonly string $autorBio,
-        public readonly string $portada = 'img/placeholder.svg',
+        // URL de la imagen; vacía si el libro no tiene (el front muestra su imagen por defecto)
+        public readonly string $portada = '',
     ) {
     }
 
@@ -28,11 +29,33 @@ class Libro
             $data['resumen'] ?? '',
             $data['descripcion'] ?? '',
             $data['autor_bio'] ?? '',
-            $data['portada'] ?? 'img/placeholder.svg',
+            $data['portada'] ?? '',
         );
     }
 
-    // Precio con formato argentino: 15000 -> $15.000
+    /**
+     * Forma del libro en la API. El listado trae lo justo para las fichas;
+     * el detalle (completo = true) agrega la descripción y la biografía del autor.
+     */
+    public function toArray(bool $completo = false): array
+    {
+        $datos = [
+            'id' => $this->id,
+            'titulo' => $this->titulo,
+            'autor' => $this->autor,
+            'genero' => $this->genero,
+            'precio' => $this->precio,
+            'resumen' => $this->resumen,
+        ];
+        if ($completo) {
+            $datos['descripcion'] = $this->descripcion;
+            $datos['autor_bio'] = $this->autorBio;
+        }
+        $datos['portada'] = $this->portada;
+        return $datos;
+    }
+
+    // Precio con formato argentino: 15000 -> $15.000 (lo usa el correo de la reserva)
     public function precioFormateado(): string
     {
         return '$' . number_format($this->precio, 0, ',', '.');

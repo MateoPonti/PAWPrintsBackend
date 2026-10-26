@@ -50,6 +50,6 @@ class Router
         if (!preg_match('#^' . $regex . '$#', $path, $matches)) {
             return null;
         }
-        return array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
+        return array_map('rawurldecode', array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY));
     }
 }

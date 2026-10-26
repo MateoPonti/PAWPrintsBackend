@@ -28,4 +28,21 @@ class Reserva
     {
         return '$' . number_format($this->total(), 0, ',', '.');
     }
+
+    // Forma de la reserva en la respuesta de la API
+    public function toArray(): array
+    {
+        return [
+            'nombre' => $this->nombre,
+            'email' => $this->email,
+            'telefono' => $this->telefono,
+            'items' => array_map(static fn (array $item): array => [
+                'libro' => $item['libro']->id,
+                'titulo' => $item['libro']->titulo,
+                'cantidad' => $item['cantidad'],
+                'precio' => $item['libro']->precio,
+            ], $this->items),
+            'total' => $this->total(),
+        ];
+    }
 }
