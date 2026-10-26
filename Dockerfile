@@ -23,8 +23,8 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 WORKDIR /var/www/html
 COPY . /var/www/html/
 
-# Dependencias (PHPMailer, psr/log) y autoload (--no-audit evita bloqueos de seguridad en el build)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-audit
+# Dependencias (PHPMailer, psr/log) y autoload (--no-security-blocking evita bloqueos de seguridad en el build)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-security-blocking
 
 # Apache corre como www-data: necesita escribir el log
 RUN mkdir -p /var/www/html/logs \
