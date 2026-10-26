@@ -11,10 +11,7 @@
     "autoload": {
         "psr-4": {
             "Paw\\": "src/"
-        },
-        "files": [
-            "src/helpers.php"
-        ]
+        }
     },
     "config": {
         "sort-packages": true
