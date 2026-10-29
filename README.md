@@ -22,6 +22,27 @@ Probar: `http://localhost:8000/api/libros`. Para usarla con el sitio, levantar e
 
 En un servidor Apache el document root tiene que ser la carpeta `public/`.
 
+### Base de datos local (Docker)
+
+Para desarrollar con base sin tocar Neon hay una PostgreSQL en `docker-compose.yml` (requiere Docker Desktop abierto):
+
+```
+docker compose up -d
+```
+
+La primera vez carga `database/schema.sql` y `database/seed.sql` (los 20 libros). Queda en el puerto **5434**, para no chocar con un Postgres instalado en 5432. En el `.env`:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=5434
+DB_NAME=pawprints
+DB_USER=pawprints
+DB_PASS=pawprints
+DB_SSLMODE=disable
+```
+
+Apagar: `docker compose down` (los datos quedan). Empezar de cero: `docker compose down -v` y de nuevo `docker compose up -d`. Para el primer administrador (ver más abajo) la consola de la base es `docker exec -it pawprints-db psql -U pawprints -d pawprints`.
+
 ## Variables de entorno (`.env`)
 
 `.env` no se sube al repo; `.env.example` es la plantilla. En Render las mismas variables se cargan en *Environment*.

@@ -1,0 +1,22 @@
+# Base PostgreSQL para desarrollo local (NO se usa en Render: allá la base es Neon).
+# Levantar:  docker compose up -d
+# Al crearse por primera vez carga database/schema.sql y database/seed.sql (los 20 libros).
+# Para empezar de cero (borra los datos): docker compose down -v && docker compose up -d
+# Puerto 5434 en la PC, para no chocar con un Postgres instalado en 5432 ni con otra base de Docker en 5433.
+services:
+  db:
+    image: postgres:17
+    container_name: pawprints-db
+    environment:
+      POSTGRES_DB: pawprints
+      POSTGRES_USER: pawprints
+      POSTGRES_PASSWORD: pawprints
+    ports:
+      - "5434:5432"
+    volumes:
+      - pawprints-db:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+
+volumes:
+  pawprints-db:
