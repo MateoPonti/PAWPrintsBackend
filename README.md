@@ -4,6 +4,8 @@ API JSON de la librería PAWPrints. Trabajos prácticos de Programación en Ambi
 
 Integrantes: Federico Kasparian, Justino Bernal, Lautaro Marino y Ponti Mateo. Los legajos están en `autores.txt` y la versión en `VERSION`.
 
+- **API publicada (Render):** https://pawprintsbackend.onrender.com (por ejemplo `/api/libros`)
+
 Este proyecto es **solo la API**: no genera HTML. El sitio (HTML, CSS y JavaScript) está en el proyecto `Frontend`, que pide los datos a esta API con `fetch`. Hecha en PHP sin framework, con un único punto de entrada.
 
 ## Cómo ejecutar
