@@ -6,10 +6,10 @@ use Paw\Core\App;
 use Paw\Core\HttpException;
 use Paw\Core\Request;
 use Paw\Core\Response;
+use Paw\Models\CorreoException;
 use Paw\Models\LibroRepository;
 use Paw\Models\ReservaMailer;
 use Paw\Models\ReservaValidator;
-use PHPMailer\PHPMailer\Exception as MailException;
 
 // POST /api/reservas: valida, registra la reserva y avisa al personal por correo.
 class ReservaController extends Controller
@@ -46,7 +46,7 @@ class ReservaController extends Controller
 
         try {
             (new ReservaMailer($this->app->config->get('mail'), $this->app->logger))->enviar($reserva);
-        } catch (MailException $e) {
+        } catch (CorreoException $e) {
             // El detalle queda en el log; al usuario solo se le pide que reintente
             $this->app->logger->error('No se pudo enviar el correo de reserva: {error}', ['error' => $e->getMessage()]);
             throw HttpException::unavailable(

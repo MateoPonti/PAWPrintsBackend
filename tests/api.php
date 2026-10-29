@@ -1,7 +1,7 @@
 <?php
 
 // Prueba de punta a punta de la API sin levantar un servidor: arma pedidos y mira las respuestas.
-// Corre sin base de datos y sin SMTP (catálogo desde data/libros.json, correos al log).
+// Corre sin base de datos y sin mandar correos (catálogo desde data/libros.json, correos al log).
 // Ejecutar desde la raíz: php tests/api.php
 
 use Paw\Core\App;
@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 // Fija el ambiente de la prueba: lo que ya está definido gana sobre el .env (ver Config::loadEnv)
 foreach ([
-    'APP_ENV' => 'production', 'APP_DEBUG' => 'false', 'DB_HOST' => '', 'SMTP_HOST' => '',
+    'APP_ENV' => 'production', 'APP_DEBUG' => 'false', 'DB_HOST' => '', 'MAIL_API_KEY' => '',
     'FRONT_URL' => 'https://front.ejemplo.com', 'JWT_SECRET' => str_repeat('t', 40),
     'LOG_PATH' => sys_get_temp_dir() . '/pawprints-test.log', 'LOG_LEVEL' => 'emergency',
 ] as $clave => $valor) {

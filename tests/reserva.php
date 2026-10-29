@@ -1,10 +1,14 @@
 <?php
 
-// Pruebas de las validaciones de la reserva (cuerpo JSON de POST /api/reservas).
+// Pruebas de las validaciones de la reserva (cuerpo JSON de POST /api/reservas) y del aviso por correo.
+// El correo se prueba con un HTTP falso: nunca se manda un correo real.
 // Ejecutar desde la raíz: php tests/reserva.php
 
+use Paw\Models\CorreoException;
 use Paw\Models\LibroRepository;
+use Paw\Models\ReservaMailer;
 use Paw\Models\ReservaValidator;
+use Psr\Log\NullLogger;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -84,6 +88,43 @@ try {
         throw new RuntimeException('Forma de la reserva en la API: ' . json_encode($datos, JSON_UNESCAPED_UNICODE));
     }
     echo "OK: Forma de la reserva en la API\n";
+
+    // ---------- Aviso por correo (API de Brevo) ----------
+    $config = ['to' => 'personal@pawprints.test', 'from' => 'remitente@pawprints.test', 'from_name' => 'PawPrints',
+        'api_key' => 'clave-de-prueba', 'api_url' => 'https://api.brevo.test/v3/smtp/email'];
+    $pedido = null;
+    $http = static function (int $status, string $cuerpo) use (&$pedido): callable {
+        return static function (string $url, array $headers, string $json) use ($status, $cuerpo, &$pedido): array {
+            $pedido = ['url' => $url, 'headers' => $headers, 'json' => json_decode($json, true)];
+            return [$status, $cuerpo];
+        };
+    };
+
+    (new ReservaMailer($config, new NullLogger(), $http(201, '{"messageId":"<1@brevo>"}')))->enviar($reserva);
+    $j = $pedido['json'];
+    if ($pedido['url'] !== $config['api_url'] || !in_array('api-key: clave-de-prueba', $pedido['headers'], true)
+        || $j['to'][0]['email'] !== 'personal@pawprints.test' || $j['sender']['email'] !== 'remitente@pawprints.test'
+        || $j['replyTo']['email'] !== 'ana@mail.com' || !str_contains($j['textContent'], '2 x Rayuela')) {
+        throw new RuntimeException('Pedido a Brevo mal armado: ' . json_encode($pedido, JSON_UNESCAPED_UNICODE));
+    }
+    echo "OK: Correo enviado por la API con remitente, destinatario, respuesta al cliente y detalle\n";
+
+    try {
+        (new ReservaMailer($config, new NullLogger(), $http(401, '{"code":"unauthorized","message":"Key not found"}')))->enviar($reserva);
+        throw new RuntimeException('Un 401 de la API tenía que lanzar CorreoException');
+    } catch (CorreoException $e) {
+        if (!str_contains($e->getMessage(), '401') || str_contains($e->getMessage(), 'clave-de-prueba')) {
+            throw new RuntimeException('Mensaje de error del correo: ' . $e->getMessage());
+        }
+    }
+    echo "OK: Un rechazo de la API lanza CorreoException (sin exponer la clave)\n";
+
+    $pedido = null;
+    (new ReservaMailer(['api_key' => ''] + $config, new NullLogger(), $http(201, '')))->enviar($reserva);
+    if ($pedido !== null) {
+        throw new RuntimeException('Sin MAIL_API_KEY no tenía que llamar a la API');
+    }
+    echo "OK: Sin MAIL_API_KEY no se llama a la API (el correo queda en el log)\n";
 } finally {
     unlink($archivo);
 }

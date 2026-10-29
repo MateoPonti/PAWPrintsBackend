@@ -56,7 +56,8 @@ Apagar: `docker compose down` (los datos quedan). Empezar de cero: `docker compo
 | `JWT_SECRET` | Clave con la que se firman los tokens. **Obligatoria para ingresar**, mínimo 32 caracteres. Generar una distinta para producción: `php -r "echo bin2hex(random_bytes(32));"`. |
 | `JWT_TTL` | Segundos de validez del token (por defecto 28800, 8 horas). |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE` | Base PostgreSQL (Neon). Con `DB_HOST` vacío el catálogo sale de `data/libros.json`, sin cuentas ni alta de libros. |
-| `MAIL_TO`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMTP_*` | Aviso por correo de cada reserva. Con `SMTP_HOST` vacío no se envía nada y el correo queda en `logs/app.log`. |
+| `MAIL_API_KEY` | API key de Brevo para el aviso de reservas (ver [Correo de reservas](#correo-de-reservas-brevo)). **Secreta.** Vacía: no se envía nada y el correo queda en `logs/app.log`. |
+| `MAIL_TO`, `MAIL_FROM`, `MAIL_FROM_NAME` | Quién recibe el aviso, el remitente (verificado en Brevo) y el nombre que se muestra. Por defecto, el mail del proyecto. |
 | `LOG_LEVEL` | Nivel mínimo del log. |
 
 ## Arquitectura
@@ -162,7 +163,18 @@ Después, al ingresar de nuevo, el front muestra **Cargar libro**.
 
 El `Dockerfile` instala PHP 8.3 con Apache, `pdo_pgsql` y las dependencias de Composer, con `public/` como document root. En *Environment* cargar:
 
-`APP_ENV=production`, `APP_DEBUG=false`, `FRONT_URL` (donde está publicado el front), `JWT_SECRET` (distinto al de local), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require` y, para que lleguen las reservas, `MAIL_TO` y las variables `SMTP_*`.
+`APP_ENV=production`, `APP_DEBUG=false`, `FRONT_URL` (donde está publicado el front), `JWT_SECRET` (distinto al de local), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require` y, para que lleguen las reservas, `MAIL_API_KEY`, `MAIL_TO` y `MAIL_FROM`.
+
+## Correo de reservas (Brevo)
+
+Cada reserva le llega por correo al personal. El envío usa la **API HTTP de Brevo** (HTTPS, puerto 443) y no SMTP: desde septiembre de 2025 Render bloquea los puertos SMTP (25, 465 y 587) en el plan gratuito. Como el pedido HTTP se hace con las funciones nativas de PHP, el proyecto ya no necesita PHPMailer.
+
+- **Mail del proyecto:** `pawprints2026mercedesgrupokbmp@gmail.com`. Es la cuenta de Brevo, el remitente verificado (`MAIL_FROM`) y quien recibe los avisos (`MAIL_TO`).
+- **Plan:** el gratuito de Brevo (300 correos por día).
+- **API key:** en Brevo, *SMTP & API → API Keys*. Va en el `.env` local y en *Environment* de Render como `MAIL_API_KEY`; nunca en el repo.
+- El correo trae como *Responder a* el mail del cliente, así el personal le contesta directo.
+- Si la API rechaza el envío o no responde en 10 segundos, la reserva responde 503 (`correo_no_enviado`) y el detalle queda en el log.
+- Como el remitente es una casilla `@gmail.com` enviada desde Brevo, algunos correos pueden caer en **spam**: la primera vez, marcarlos como "No es spam". Para evitarlo del todo haría falta un dominio propio verificado en Brevo.
 
 Como *Health Check Path* se puede usar `/api/health`. En el plan gratuito el servicio se duerme tras un rato sin pedidos y el primero tarda en responder; el front avisa que el servidor no respondió y ofrece reintentar.
 
@@ -172,11 +184,11 @@ Después de `composer install`:
 
 ```
 php tests/catalogo.php   # filtrado y orden del catálogo
-php tests/reserva.php    # validaciones de la reserva
+php tests/reserva.php    # validaciones de la reserva y aviso por correo (con un HTTP falso)
 php tests/libro.php      # validaciones del alta de libros
 php tests/jwt.php        # token de acceso
 php tests/cors.php       # orígenes permitidos
-php tests/api.php        # la API completa, sin servidor, base ni SMTP
+php tests/api.php        # la API completa, sin servidor, base ni correos reales
 ```
 
 ## Versiones

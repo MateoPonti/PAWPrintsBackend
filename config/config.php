@@ -52,17 +52,14 @@ return [
         'per_page_max' => 100,
     ],
 
-    // Lo usa el procesamiento de la reserva
+    // Lo usa el procesamiento de la reserva. El correo sale por la API HTTP de Brevo (no SMTP:
+    // Render bloquea esos puertos en el plan gratuito). Con MAIL_API_KEY vacía, el correo queda en el log.
     'mail' => [
-        'to' => $env('MAIL_TO', 'reservas@pawprints.com.ar'),
-        'from' => $env('MAIL_FROM', 'no-reply@pawprints.com.ar'),
+        'to' => $env('MAIL_TO', 'pawprints2026mercedesgrupokbmp@gmail.com'),
+        // Tiene que ser un remitente verificado en Brevo (Senders)
+        'from' => $env('MAIL_FROM', 'pawprints2026mercedesgrupokbmp@gmail.com'),
         'from_name' => $env('MAIL_FROM_NAME', 'PawPrints'),
-        'smtp' => [
-            'host' => $env('SMTP_HOST', ''),
-            'port' => (int) $env('SMTP_PORT', 587),
-            'user' => $env('SMTP_USER', ''),
-            'pass' => $env('SMTP_PASS', ''),
-            'secure' => $env('SMTP_SECURE', 'tls'),
-        ],
+        'api_key' => $env('MAIL_API_KEY', ''),
+        'api_url' => $env('MAIL_API_URL', 'https://api.brevo.com/v3/smtp/email'),
     ],
 ];
