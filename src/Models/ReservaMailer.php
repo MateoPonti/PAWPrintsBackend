@@ -28,7 +28,7 @@ class ReservaMailer
     /** @throws CorreoException si el servicio de correo rechaza el envío o no responde */
     public function enviar(Reserva $reserva): void
     {
-        $asunto = 'Nueva reserva de ' . $reserva->nombre;
+        $asunto = 'Nueva reserva de ' . $reserva->nombre . ' (' . $reserva->email . ')';
         $cuerpo = self::cuerpo($reserva);
 
         if (($this->config['api_key'] ?? '') === '') {
@@ -89,17 +89,19 @@ class ReservaMailer
         return [$status, $respuesta];
     }
 
-    // Cuerpo en texto plano del correo al personal
-    public static function cuerpo(Reserva $reserva): string
+    // Cuerpo en texto plano del correo al personal. $ahora se puede fijar (lo usan los tests).
+    public static function cuerpo(Reserva $reserva, ?\DateTimeImmutable $ahora = null): string
     {
+        $ahora ??= new \DateTimeImmutable('now', new \DateTimeZone('America/Argentina/Buenos_Aires'));
         $lineas = [
-            'Se recibió una nueva reserva desde el sitio.',
+            'Nueva reserva hecha desde el sitio el ' . $ahora->format('d/m/Y') . ' a las ' . $ahora->format('H:i') . ' (hora de Argentina).',
             '',
+            'QUIÉN RESERVÓ',
             'Nombre: ' . $reserva->nombre,
             'Correo: ' . $reserva->email,
             'Teléfono: ' . ($reserva->telefono !== '' ? $reserva->telefono : '(no informado)'),
             '',
-            'Libros:',
+            'LIBROS RESERVADOS',
         ];
         foreach ($reserva->items as $item) {
             $libro = $item['libro'];
@@ -108,6 +110,8 @@ class ReservaMailer
         }
         $lineas[] = '';
         $lineas[] = 'Total estimado: ' . $reserva->totalFormateado();
+        $lineas[] = '';
+        $lineas[] = 'Para confirmarle la reserva a ' . $reserva->nombre . ', respondé este correo: la respuesta le llega a ' . $reserva->email . '.';
 
         return implode("\n", $lineas) . "\n";
     }

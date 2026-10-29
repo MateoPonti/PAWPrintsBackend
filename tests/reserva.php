@@ -104,10 +104,17 @@ try {
     $j = $pedido['json'];
     if ($pedido['url'] !== $config['api_url'] || !in_array('api-key: clave-de-prueba', $pedido['headers'], true)
         || $j['to'][0]['email'] !== 'personal@pawprints.test' || $j['sender']['email'] !== 'remitente@pawprints.test'
-        || $j['replyTo']['email'] !== 'ana@mail.com' || !str_contains($j['textContent'], '2 x Rayuela')) {
+        || $j['replyTo']['email'] !== 'ana@mail.com' || !str_contains($j['textContent'], '2 x Rayuela')
+        || !str_contains($j['subject'], 'Ana Pérez (ana@mail.com)') || !str_contains($j['textContent'], 'Nombre: Ana Pérez')) {
         throw new RuntimeException('Pedido a Brevo mal armado: ' . json_encode($pedido, JSON_UNESCAPED_UNICODE));
     }
     echo "OK: Correo enviado por la API con remitente, destinatario, respuesta al cliente y detalle\n";
+
+    $texto = ReservaMailer::cuerpo($reserva, new DateTimeImmutable('2026-10-29 15:23', new DateTimeZone('America/Argentina/Buenos_Aires')));
+    if (!str_contains($texto, 'el 29/10/2026 a las 15:23') || !str_contains($texto, 'QUIÉN RESERVÓ') || !str_contains($texto, 'le llega a ana@mail.com')) {
+        throw new RuntimeException("Cuerpo del correo:\n$texto");
+    }
+    echo "OK: El correo dice quién reservó, cuándo y cómo responderle\n";
 
     try {
         (new ReservaMailer($config, new NullLogger(), $http(401, '{"code":"unauthorized","message":"Key not found"}')))->enviar($reserva);
