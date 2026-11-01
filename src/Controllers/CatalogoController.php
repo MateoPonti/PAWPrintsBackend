@@ -6,6 +6,7 @@ use Paw\Core\App;
 use Paw\Core\HttpException;
 use Paw\Core\Request;
 use Paw\Core\Response;
+use Paw\Models\CatalogoCsv;
 use Paw\Models\Libro;
 use Paw\Models\LibroRepository;
 
@@ -21,6 +22,7 @@ class CatalogoController extends Controller
     }
 
     // GET /api/libros?genero=&autor=&precio_max=&orden=&page=&per_page=
+    // Con formato=csv devuelve todos los resultados de esa búsqueda (sin paginar) para descargar.
     public function index(Request $request): Response
     {
         $texto = static function (string $clave, string $default = '') use ($request): string {
@@ -39,6 +41,11 @@ class CatalogoController extends Controller
             'orden' => in_array($orden, ['relevancia', 'precio-asc', 'precio-desc', 'titulo'], true)
                 ? $orden : 'relevancia',
         ];
+
+        if ($texto('formato') === 'csv') {
+            return Response::archivo(CatalogoCsv::generar($this->libros->search($filtros)), 'text/csv; charset=UTF-8')
+                ->withHeader('Content-Disposition', 'attachment; filename="catalogo-pawprints.csv"');
+        }
 
         $pagina = filter_var($request->query('page', '1'), FILTER_VALIDATE_INT, [
             'options' => ['min_range' => 1],

@@ -73,6 +73,14 @@ afirmar($r->status() === 404, 'Página inválida: 404', $r);
 $r = pedir('GET', '/api/libros', ['autor' => 'zzzzzz']);
 afirmar($r->status() === 200 && datos($r)['total'] === 0 && datos($r)['paginas'] === 1, 'Búsqueda sin resultados: 200 con 0 libros', $r);
 
+$r = pedir('GET', '/api/libros', ['formato' => 'csv', 'genero' => 'poesia', 'orden' => 'precio-asc']);
+$lineas = array_values(array_filter(explode("\r\n", $r->body())));
+afirmar($r->status() === 200 && str_starts_with($r->headers()['Content-Type'], 'text/csv'), 'CSV: responde text/csv', $r);
+afirmar(str_contains($r->headers()['Content-Disposition'] ?? '', 'attachment'), 'CSV: se descarga como archivo');
+afirmar($lineas[0] === "\u{FEFF}id,titulo,autor,genero,precio,resumen", 'CSV: encabezado');
+afirmar(count($lineas) - 1 === datos(pedir('GET', '/api/libros', ['genero' => 'poesia']))['total'], 'CSV: una fila por libro filtrado, sin paginar');
+afirmar(str_contains($lineas[1], 'Poesía'), 'CSV: género con su nombre');
+
 $r = pedir('GET', '/api/libros/rayuela');
 $l = datos($r)['libro'] ?? [];
 afirmar($r->status() === 200 && $l['id'] === 'rayuela' && isset($l['descripcion'], $l['autor_bio'], $l['portada']), 'Detalle de un libro', $r);

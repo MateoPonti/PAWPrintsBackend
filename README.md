@@ -122,6 +122,7 @@ Códigos: 400 cuerpo inválido, 401 sin token o token vencido, 403 sin permisos,
 | `orden` | `relevancia` (orden de carga), `precio-asc`, `precio-desc` o `titulo`. Inválido: `relevancia`. |
 | `page` | Entero mayor o igual a 1. Por defecto 1. Inválido o fuera de rango: 404. |
 | `per_page` | De 1 a 100. Ausente o inválido: 6. |
+| `formato` | `csv`: devuelve todos los resultados de esa búsqueda, sin paginar, como archivo CSV para descargar (`text/csv`, RFC 4180 con BOM para Excel). Las celdas que empiezan con `=`, `+`, `-` o `@` llevan un apóstrofo adelante para que Excel no las tome como fórmulas. |
 
 Cada libro del listado es `{id, titulo, autor, genero, precio, resumen, portada}`; el detalle agrega `descripcion` y `autor_bio`. `portada` es la URL de la imagen, o vacío si el libro no tiene (el front muestra su imagen por defecto). Una búsqueda sin resultados responde 200 con `total: 0` y `paginas: 1`.
 
