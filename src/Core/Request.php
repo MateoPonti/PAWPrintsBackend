@@ -3,7 +3,7 @@
 namespace Paw\Core;
 
 // Encapsula la petición HTTP para que los controladores no lean $_GET, php://input ni $_SERVER directamente.
-// El cuerpo de los POST es JSON (Content-Type: application/json).
+// El cuerpo de los POST es JSON (Content-Type: application/json), salvo la subida de portadas, que manda la imagen tal cual.
 class Request
 {
     private ?array $body = null;
@@ -77,6 +77,20 @@ class Request
             throw HttpException::badRequest('El cuerpo del pedido tiene que ser un objeto JSON válido.');
         }
         return $this->body = $datos;
+    }
+
+    // Cuerpo sin procesar (lo usa la subida de portadas)
+    public function body(): string
+    {
+        return $this->rawBody;
+    }
+
+    // Tipo del cuerpo sin parámetros: "image/png; charset=x" -> "image/png".
+    // PHP lo deja en CONTENT_TYPE y no en HTTP_CONTENT_TYPE como al resto de las cabeceras.
+    public function contentType(): string
+    {
+        $tipo = $this->server['CONTENT_TYPE'] ?? $this->header('Content-Type') ?? '';
+        return strtolower(trim(explode(';', $tipo)[0]));
     }
 
     public function header(string $name, ?string $default = null): ?string

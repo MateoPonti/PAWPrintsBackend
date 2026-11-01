@@ -3,7 +3,7 @@
 namespace Paw\Core;
 
 // Respuesta HTTP: código de estado, cabeceras y cuerpo. Se arma en el controlador y la envía el front controller.
-// Toda la API responde JSON.
+// Toda la API responde JSON, salvo las portadas de los libros, que son imágenes.
 class Response
 {
     public function __construct(
@@ -22,6 +22,16 @@ class Response
 
         return new self($body === false ? '{}' : $body, $status, [
             'Content-Type' => 'application/json; charset=UTF-8',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    // Archivo binario (las portadas): el cuerpo son los bytes y el tipo va en Content-Type
+    public static function archivo(string $datos, string $tipo): self
+    {
+        return new self($datos, 200, [
+            'Content-Type' => $tipo,
+            'Content-Length' => (string) strlen($datos),
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }

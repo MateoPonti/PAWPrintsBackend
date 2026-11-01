@@ -23,3 +23,12 @@ CREATE TABLE IF NOT EXISTS libros (
   imagen_url  VARCHAR(255),                   -- vacío = portada por defecto (img/placeholder.svg)
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+-- Tapas subidas desde el alta de libros (arrastrar y soltar). Se guardan en la base y no en disco
+-- porque en Render el disco se borra en cada despliegue. libros.imagen_url apunta a /api/portadas/{id}.
+CREATE TABLE IF NOT EXISTS portadas (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  tipo       VARCHAR(20) NOT NULL CHECK (tipo IN ('image/jpeg', 'image/png', 'image/webp')),
+  datos      BYTEA       NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

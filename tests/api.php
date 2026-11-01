@@ -101,7 +101,8 @@ $r = pedir('POST', '/api/reservas', [], '[1,2]');
 afirmar($r->status() === 400, 'JSON que no es un objeto: 400', $r);
 
 // Cuentas: sin base de datos no están disponibles
-foreach ([['POST', '/api/registro'], ['POST', '/api/login'], ['GET', '/api/me'], ['POST', '/api/admin/libros']] as [$m, $ruta]) {
+foreach ([['POST', '/api/registro'], ['POST', '/api/login'], ['GET', '/api/me'], ['POST', '/api/admin/libros'],
+    ['POST', '/api/admin/portadas'], ['GET', '/api/portadas/1']] as [$m, $ruta]) {
     $r = pedir($m, $ruta, [], $m === 'POST' ? [] : null);
     afirmar($r->status() === 503 && datos($r)['error'] === 'base_no_configurada', "$m $ruta sin base de datos: 503", $r);
 }

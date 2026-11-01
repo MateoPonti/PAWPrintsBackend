@@ -83,7 +83,7 @@ tests/             Pruebas (php tests/<archivo>.php)
 |---|---|
 | Petición HTTP | `Core/Request`: método, path, query string, cuerpo JSON, cabeceras y token Bearer. Los controladores no leen `$_GET` ni `$_SERVER`. |
 | Mapeo de URLs | `Core/Router` y `config/routes.php`. Parámetros (`/api/libros/{id}`), 404 y 405 con `Allow`. |
-| Respuesta | `Core/Response::json()`. Todas las respuestas, también los errores, son JSON. |
+| Respuesta | `Core/Response::json()`. Todas las respuestas, también los errores, son JSON, salvo las imágenes de `GET /api/portadas/{id}` (`Response::archivo()`). |
 | Errores | `Core/ErrorHandler` + `Core/HttpException`: todo error se registra en el log y sale como `{"error", "mensaje", "errores"}`. En producción el 500 es un mensaje genérico. |
 | Autenticación | `Core/Auth` + `Core/Jwt`: token JWT (HS256) en `Authorization: Bearer <token>`. Sin sesión ni cookies, así que no hace falta CSRF. El rol se consulta en la base en cada pedido. |
 | CORS | `Core/Cors`: responde el preflight (`OPTIONS`) y autoriza solo los orígenes de `FRONT_URL`. |
@@ -105,6 +105,8 @@ Los errores tienen siempre la forma `{"error": "codigo", "mensaje": "...", "erro
 | `POST /api/login` | público | `email`, `password` | `{token, tipo, expira_en, usuario}` o 422 con `mensaje` |
 | `GET /api/me` | token | - | `{usuario}` o 401 |
 | `POST /api/admin/libros` | admin | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
+| `POST /api/admin/portadas` | admin | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
+| `GET /api/portadas/{id}` | público | `id` numérico | La imagen (no es JSON) o 404 |
 
 Códigos: 400 cuerpo inválido, 401 sin token o token vencido, 403 sin permisos, 404 no existe, 405 método no permitido, 422 datos inválidos, 503 función no disponible (sin base de datos, base caída, falló el correo o falta `JWT_SECRET`).
 
@@ -143,9 +145,19 @@ La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo,
 - El token dura `JWT_TTL` segundos (`expira_en` es esa cantidad). Cerrar sesión es descartarlo en el front.
 - Si el usuario ya no existe, o el token venció o fue alterado, los endpoints con token responden 401.
 
+### Portadas
+
+El alta de libros del front permite arrastrar la tapa. El front la achica y la pasa a WebP antes de mandarla, y la sube con `POST /api/admin/portadas`. La URL que devuelve va como `imagen_url` del libro.
+
+- **Cuerpo:** la imagen tal cual, sin multipart ni JSON. El tipo va en `Content-Type`.
+- **Validación (`PortadaValidator`):** hasta 1 MB, y solo JPG, PNG o WebP. No alcanza con el `Content-Type`: con `getimagesizefromstring` se lee la cabecera del archivo y tiene que coincidir. SVG no se acepta porque puede traer scripts.
+- **Dónde se guardan:** en la tabla `portadas` (columna `BYTEA`), no en disco, porque en Render el disco se borra en cada despliegue.
+- **Respuesta de `GET /api/portadas/{id}`:** sale con su tipo, `X-Content-Type-Options: nosniff` y `Cache-Control: immutable` de un año, así cada navegador la pide una sola vez. Una portada nunca cambia: una nueva tiene otro id.
+- Si en algún momento hicieran falta muchas imágenes, el paso siguiente es un almacenamiento de archivos con CDN (S3, Cloudinary). Solo cambiaría `PortadaRepository`.
+
 ## Base de datos (Neon)
 
-1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros).
+1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros). `schema.sql` se puede volver a correr sin perder datos: así se agrega la tabla `portadas` de la entrega 4 a una base que ya existía.
 2. Botón **Connect** → desactivar **Connection pooling** → copiar host, base, usuario y contraseña al `.env` (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
 3. En local hace falta la extensión `pdo_pgsql` de PHP (en XAMPP: descomentar `extension=pdo_pgsql` y `extension=pgsql` en `php.ini`). Con un Postgres local sin SSL, agregar `DB_SSLMODE=disable`.
 
@@ -186,6 +198,7 @@ Después de `composer install`:
 php tests/catalogo.php   # filtrado y orden del catálogo
 php tests/reserva.php    # validaciones de la reserva y aviso por correo (con un HTTP falso)
 php tests/libro.php      # validaciones del alta de libros
+php tests/portada.php    # validación de las portadas subidas
 php tests/jwt.php        # token de acceso
 php tests/cors.php       # orígenes permitidos
 php tests/api.php        # la API completa, sin servidor, base ni correos reales
@@ -193,4 +206,4 @@ php tests/api.php        # la API completa, sin servidor, base ni correos reales
 
 ## Versiones
 
-Usamos versionado semántico en el archivo `VERSION` y un tag de git por entrega: `tp1` es la 0.1.0 y `tp2` la 0.2.0.
+Usamos versionado semántico en el archivo `VERSION` y un tag de git por entrega: `tp1` es la 0.1.0, `tp2` la 0.2.0, `Entrega_3` la 0.3.0 y `Entrega_4` la 0.4.0.
