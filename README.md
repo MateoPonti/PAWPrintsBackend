@@ -45,6 +45,22 @@ DB_SSLMODE=disable
 
 Apagar: `docker compose down` (los datos quedan). Empezar de cero: `docker compose down -v` y de nuevo `docker compose up -d`. Para el primer administrador (ver más abajo) la consola de la base es `docker exec -it pawprints-db psql -U pawprints -d pawprints`.
 
+## Entorno de prueba
+
+Versiones con las que se desarrolló y probó (lo pide la guía de entrega). En local la base corre en Docker y en producción el back corre en la imagen Docker del `Dockerfile`, así que esas versiones son las mismas en cualquier máquina.
+
+| | Local (desarrollo) | Producción |
+|---|---|---|
+| Sistema operativo | Windows 11 Pro (build 26200) | Debian (imagen `php:8.3-apache`) en Render |
+| PHP | 8.4.10 CLI, con `pdo_pgsql`, `mbstring` y `fileinfo` | 8.3.36 + Apache |
+| Composer | 2.10.3 | 2.11.1 (imagen `composer:2`) |
+| PostgreSQL | 17.11 en Docker (imagen `postgres:17`) | Neon (PostgreSQL administrado) |
+| Docker | Docker Desktop 4.92.0 (Engine 29.8.0, Compose v5.5.1) | — |
+| Git | 2.55.0 | — |
+| Navegadores | Chrome 156 y Edge 156 | — |
+
+El código sólo usa funciones de PHP 8.2 o anteriores, así que la diferencia entre 8.4 (local) y 8.3 (producción) no afecta.
+
 ## Variables de entorno (`.env`)
 
 `.env` no se sube al repo; `.env.example` es la plantilla. En Render las mismas variables se cargan en *Environment*.
