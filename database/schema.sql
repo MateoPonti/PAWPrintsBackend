@@ -32,3 +32,13 @@ CREATE TABLE IF NOT EXISTS portadas (
   datos      BYTEA       NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Sesiones de PHP ($_SESSION). Se guardan en la base y no en archivos porque en Render el disco se borra
+-- en cada despliegue (ver Core/SesionDb). id = el valor de la cookie pawprints_sesion; datos = $_SESSION serializado.
+CREATE TABLE IF NOT EXISTS sesiones (
+  id    VARCHAR(256) PRIMARY KEY,
+  datos TEXT         NOT NULL,
+  vence TIMESTAMPTZ  NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sesiones_vence ON sesiones (vence);

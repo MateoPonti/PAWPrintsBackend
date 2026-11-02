@@ -13,7 +13,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 // Fija el ambiente de la prueba: lo que ya está definido gana sobre el .env (ver Config::loadEnv)
 foreach ([
     'APP_ENV' => 'production', 'APP_DEBUG' => 'false', 'DB_HOST' => '', 'MAIL_API_KEY' => '',
-    'FRONT_URL' => 'https://front.ejemplo.com', 'JWT_SECRET' => str_repeat('t', 40),
+    'FRONT_URL' => 'https://front.ejemplo.com',
     'LOG_PATH' => sys_get_temp_dir() . '/pawprints-test.log', 'LOG_LEVEL' => 'emergency',
 ] as $clave => $valor) {
     putenv("$clave=$valor");
@@ -114,5 +114,9 @@ foreach ([['POST', '/api/registro'], ['POST', '/api/login'], ['GET', '/api/me'],
     $r = pedir($m, $ruta, [], $m === 'POST' ? [] : null);
     afirmar($r->status() === 503 && datos($r)['error'] === 'base_no_configurada', "$m $ruta sin base de datos: 503", $r);
 }
+
+// Salir sin base de datos no falla: no hay sesión que destruir
+$r = pedir('POST', '/api/logout');
+afirmar($r->status() === 204, 'Logout sin base de datos: 204', $r);
 
 echo "\nTodo OK\n";

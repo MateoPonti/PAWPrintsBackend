@@ -30,7 +30,8 @@ abstract class Controller
         }
     }
 
-    // El usuario del token, o 401 si no hay token, es inválido, venció o el usuario ya no existe
+    // El usuario de la sesión, o 401 si no inició sesión, venció o el usuario ya no existe.
+    // Si el pedido cambia datos, además exige el token CSRF (403).
     protected function exigirUsuario(): Usuario
     {
         $this->exigirBase();
@@ -38,6 +39,7 @@ abstract class Controller
         if ($usuario === null) {
             throw HttpException::unauthorized();
         }
+        $this->app->exigirCsrfSiEscribe();
         return $usuario;
     }
 

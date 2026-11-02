@@ -45,7 +45,7 @@ class App
         $this->errorHandler->register();
 
         $this->auth = new Auth(
-            (string) $this->config->get('auth.secret'),
+            fn (): PDO => $this->pdo(),
             (int) $this->config->get('auth.ttl'),
         );
 
@@ -84,7 +84,7 @@ class App
             : new LibroRepository($this->config->get('catalogo.data'));
     }
 
-    // Usuario del token del pedido, o null (sin token, token inválido o vencido, o usuario borrado)
+    // Usuario de la sesión del pedido, o null (sin sesión, sesión vencida o usuario borrado)
     public function usuario(): ?Usuario
     {
         if ($this->usuarioCargado) {
@@ -97,6 +97,14 @@ class App
             $this->usuario = (new UsuarioRepository($this->pdo()))->find($id);
         }
         return $this->usuario;
+    }
+
+    // Los pedidos con sesión que cambian datos (todo lo que no es GET) exigen el token CSRF
+    public function exigirCsrfSiEscribe(): void
+    {
+        if ($this->request->method() !== 'GET') {
+            $this->auth->exigirCsrf($this->request);
+        }
     }
 
     public function handle(): Response

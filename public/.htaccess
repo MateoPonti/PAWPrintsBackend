@@ -2,9 +2,6 @@
 Options -Indexes
 RewriteEngine On
 
-# Apache no le pasa a PHP el encabezado Authorization (el token) si no se le pide
-RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
-
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]

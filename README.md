@@ -16,7 +16,7 @@ Se necesita PHP 8.1 o superior (con `pdo_pgsql` si se usa la base) y Composer.
 git clone https://github.com/MateoPonti/PAWPrintsBackend.git
 cd PAWPrintsBackend
 composer install
-cp .env.example .env          # y completar JWT_SECRET (ver abajo)
+cp .env.example .env          # y completar los datos de la base (ver abajo)
 php -S localhost:8000 -t public public/index.php
 ```
 
@@ -69,8 +69,7 @@ El código sólo usa funciones de PHP 8.2 o anteriores, así que la diferencia e
 |---|---|
 | `APP_ENV`, `APP_DEBUG` | `development` / `true` agrega el campo `detalle` a los errores 500. En producción: `production` / `false`. |
 | `FRONT_URL` | Orígenes desde los que el navegador puede usar la API (CORS): la dirección donde se publica el front, sin barra final. Varios, separados por coma. **Si falta el del front publicado, el navegador bloquea todos los pedidos.** |
-| `JWT_SECRET` | Clave con la que se firman los tokens. **Obligatoria para ingresar**, mínimo 32 caracteres. Generar una distinta para producción: `php -r "echo bin2hex(random_bytes(32));"`. |
-| `JWT_TTL` | Segundos de validez del token (por defecto 28800, 8 horas). |
+| `SESION_TTL` | Segundos de validez de la sesión (por defecto 28800, 8 horas). |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE` | Base PostgreSQL (Neon). Con `DB_HOST` vacío el catálogo sale de `data/libros.json`, sin cuentas ni alta de libros. |
 | `MAIL_API_KEY` | API key de Brevo para el aviso de reservas (ver [Correo de reservas](#correo-de-reservas-brevo)). **Secreta.** Vacía: no se envía nada y el correo queda en `logs/app.log`. |
 | `MAIL_TO`, `MAIL_FROM`, `MAIL_FROM_NAME` | Quién recibe el aviso, el remitente (verificado en Brevo) y el nombre que se muestra. Por defecto, el mail del proyecto. |
@@ -81,7 +80,7 @@ El código sólo usa funciones de PHP 8.2 o anteriores, así que la diferencia e
 ```
 public/
   index.php        Front controller: toda petición entra por acá
-  .htaccess        Redirige todo a index.php y le pasa a PHP el encabezado Authorization (Apache)
+  .htaccess        Redirige todo a index.php (Apache)
 config/
   config.php       Configuración, toma los valores del .env
   routes.php       Mapa de URLs a controladores
@@ -97,11 +96,11 @@ tests/             Pruebas (php tests/<archivo>.php)
 
 | Problemática | Dónde |
 |---|---|
-| Petición HTTP | `Core/Request`: método, path, query string, cuerpo JSON, cabeceras y token Bearer. Los controladores no leen `$_GET` ni `$_SERVER`. |
+| Petición HTTP | `Core/Request`: método, path, query string, cuerpo JSON, cabeceras y cookies. Los controladores no leen `$_GET` ni `$_SERVER`. |
 | Mapeo de URLs | `Core/Router` y `config/routes.php`. Parámetros (`/api/libros/{id}`), 404 y 405 con `Allow`. |
 | Respuesta | `Core/Response::json()`. Todas las respuestas, también los errores, son JSON, salvo las imágenes de `GET /api/portadas/{id}` (`Response::archivo()`). |
 | Errores | `Core/ErrorHandler` + `Core/HttpException`: todo error se registra en el log y sale como `{"error", "mensaje", "errores"}`. En producción el 500 es un mensaje genérico. |
-| Autenticación | `Core/Auth` + `Core/Jwt`: token JWT (HS256) en `Authorization: Bearer <token>`. Sin sesión ni cookies, así que no hace falta CSRF. El rol se consulta en la base en cada pedido. |
+| Autenticación | `Core/Auth` + `Core/SesionDb`: sesión de PHP (`$_SESSION`) guardada en la tabla `sesiones` (el disco de Render se borra en cada despliegue). La cookie `pawprints_sesion` solo lleva el id (`HttpOnly`, `Secure`, `SameSite=Strict`). Los POST con sesión exigen el token CSRF en `X-CSRF-Token`. El rol se consulta en la base en cada pedido. |
 | CORS | `Core/Cors`: responde el preflight (`OPTIONS`) y autoriza solo los orígenes de `FRONT_URL`. |
 | Persistencia | `Models/LibroRepository` (JSON) y `Models/LibroDbRepository` (Neon); `App::libros()` elige. Los controladores no saben de dónde salen los libros. |
 | Logs | `Core/FileLogger` (PSR-3) en `logs/app.log`. |
@@ -118,13 +117,14 @@ Los errores tienen siempre la forma `{"error": "codigo", "mensaje": "...", "erro
 | `GET /api/libros/{id}` | público | `id` = slug | `{libro}` o 404 |
 | `POST /api/reservas` | público | `{nombre, email, telefono, items: [{libro, cantidad}]}` | `201 {reserva}`, 422 con errores o 503 si falla el correo |
 | `POST /api/registro` | público | `nombre`, `email`, `password`, `password_confirm` | `201 {usuario}`, 422 con errores. No inicia sesión. |
-| `POST /api/login` | público | `email`, `password` | `{token, tipo, expira_en, usuario}` o 422 con `mensaje` |
-| `GET /api/me` | token | - | `{usuario}` o 401 |
-| `POST /api/admin/libros` | admin | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
-| `POST /api/admin/portadas` | admin | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
+| `POST /api/login` | público | `email`, `password` | `{csrf, expira_en, usuario}` + cookie de sesión, o 422 con `mensaje` |
+| `POST /api/logout` | público | - | `204`: destruye la sesión en el servidor y borra la cookie |
+| `GET /api/me` | sesión | - | `{usuario, csrf}` o 401 |
+| `POST /api/admin/libros` | admin + CSRF | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
+| `POST /api/admin/portadas` | admin + CSRF | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
 | `GET /api/portadas/{id}` | público | `id` numérico | La imagen (no es JSON) o 404 |
 
-Códigos: 400 cuerpo inválido, 401 sin token o token vencido, 403 sin permisos, 404 no existe, 405 método no permitido, 422 datos inválidos, 503 función no disponible (sin base de datos, base caída, falló el correo o falta `JWT_SECRET`).
+Códigos: 400 cuerpo inválido, 401 sin sesión o sesión vencida, 403 sin permisos o token CSRF incorrecto, 404 no existe, 405 método no permitido, 422 datos inválidos, 503 función no disponible (sin base de datos, base caída o falló el correo).
 
 ### Catálogo
 
@@ -159,8 +159,11 @@ La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo,
 
 - La contraseña tiene de 8 a 72 caracteres, con al menos una letra y un número. Se guarda con `password_hash`.
 - El registro siempre crea usuarios con rol `usuario`. El login con datos incorrectos responde 422 con el mismo mensaje exista o no el correo.
-- El token dura `JWT_TTL` segundos (`expira_en` es esa cantidad). Cerrar sesión es descartarlo en el front.
-- Si el usuario ya no existe, o el token venció o fue alterado, los endpoints con token responden 401.
+- **Sesión de PHP en la base:** el login hace `session_regenerate_id(true)` (id nuevo y se borra el viejo: evita fijación de sesión) y guarda en `$_SESSION` el id del usuario y un token CSRF al azar (`random_bytes`). `session.use_strict_mode` rechaza ids inventados por el cliente.
+- La sesión dura `SESION_TTL` segundos (`expira_en` es esa cantidad).
+- **Salir** (`POST /api/logout`) hace los tres pasos: `$_SESSION = []`, cookie vencida y `session_destroy()`, que borra la fila de `sesiones`. El id deja de servir en el servidor aunque alguien lo hubiera copiado.
+- **CSRF:** como el navegador manda la cookie solo, los POST con sesión (`/api/admin/*`) exigen el header `X-CSRF-Token` con el token que devolvió el login (o `GET /api/me`). Se compara con `hash_equals`. Primera barrera: `SameSite=Strict`.
+- Si el usuario ya no existe o la sesión venció, los endpoints con sesión responden 401.
 
 ### Portadas
 
@@ -174,7 +177,7 @@ El alta de libros del front permite arrastrar la tapa. El front la achica y la p
 
 ## Base de datos (Neon)
 
-1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros). `schema.sql` se puede volver a correr sin perder datos: así se agrega la tabla `portadas` de la entrega 4 a una base que ya existía.
+1. En la consola de Neon abrir el **SQL Editor**, pegar `database/schema.sql` y ejecutarlo; después `database/seed.sql` (los 20 libros). `schema.sql` se puede volver a correr sin perder datos: así se agregan las tablas `portadas` (entrega 4) y `sesiones` (sesión de PHP) a una base que ya existía.
 2. Botón **Connect** → desactivar **Connection pooling** → copiar host, base, usuario y contraseña al `.env` (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`).
 3. En local hace falta la extensión `pdo_pgsql` de PHP (en XAMPP: descomentar `extension=pdo_pgsql` y `extension=pgsql` en `php.ini`). Con un Postgres local sin SSL, agregar `DB_SSLMODE=disable`.
 
@@ -192,7 +195,7 @@ Después, al ingresar de nuevo, el front muestra **Cargar libro**.
 
 El `Dockerfile` instala PHP 8.3 con Apache, `pdo_pgsql` y las dependencias de Composer, con `public/` como document root. En *Environment* cargar:
 
-`APP_ENV=production`, `APP_DEBUG=false`, `FRONT_URL` (donde está publicado el front), `JWT_SECRET` (distinto al de local), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require` y, para que lleguen las reservas, `MAIL_API_KEY`, `MAIL_TO` y `MAIL_FROM`.
+`APP_ENV=production`, `APP_DEBUG=false`, `FRONT_URL` (donde está publicado el front), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSLMODE=require` y, para que lleguen las reservas, `MAIL_API_KEY`, `MAIL_TO` y `MAIL_FROM`.
 
 ## Correo de reservas (Brevo)
 
@@ -216,7 +219,6 @@ php tests/catalogo.php   # filtrado y orden del catálogo
 php tests/reserva.php    # validaciones de la reserva y aviso por correo (con un HTTP falso)
 php tests/libro.php      # validaciones del alta de libros
 php tests/portada.php    # validación de las portadas subidas
-php tests/jwt.php        # token de acceso
 php tests/cors.php       # orígenes permitidos
 php tests/api.php        # la API completa, sin servidor, base ni correos reales
 ```

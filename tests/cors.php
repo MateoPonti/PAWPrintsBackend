@@ -35,6 +35,8 @@ $todos = new Cors('*');
 afirmar($todos->cabeceras('https://cualquiera.com')['Access-Control-Allow-Origin'] === '*', 'Comodín');
 
 $pre = $produccion->preflight(new Request('OPTIONS', '/api/login', [], '', ['HTTP_ORIGIN' => 'https://usuario.github.io']));
-afirmar($pre->status() === 204 && str_contains($pre->headers()['Access-Control-Allow-Headers'], 'Authorization'), 'Preflight permite Authorization');
+afirmar($pre->status() === 204 && str_contains($pre->headers()['Access-Control-Allow-Headers'], 'X-CSRF-Token'), 'Preflight permite X-CSRF-Token');
+afirmar(($pre->headers()['Access-Control-Allow-Credentials'] ?? '') === 'true', 'Preflight permite credenciales (cookie de sesión)');
+afirmar(!isset($todos->cabeceras('https://cualquiera.com')['Access-Control-Allow-Credentials']), 'Con comodín no se permiten credenciales');
 $preMalo = $produccion->preflight(new Request('OPTIONS', '/api/login', [], '', ['HTTP_ORIGIN' => 'https://otro.com']));
 afirmar($preMalo->status() === 204 && !isset($preMalo->headers()['Access-Control-Allow-Origin']), 'Preflight de origen no permitido sin cabeceras CORS');

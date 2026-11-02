@@ -50,7 +50,7 @@ class HttpException extends RuntimeException
 
     public static function unauthorized(string $mensaje = 'Tenés que iniciar sesión para hacer esto.'): self
     {
-        return new self(401, $mensaje, '', [], ['WWW-Authenticate' => 'Bearer']);
+        return new self(401, $mensaje);
     }
 
     public static function forbidden(string $mensaje = 'No tenés permisos para hacer esto.'): self

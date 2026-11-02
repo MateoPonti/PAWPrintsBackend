@@ -8,8 +8,8 @@ use Paw\Core\Response;
 use Paw\Models\UsuarioRepository;
 use PDOException;
 
-// Registro, ingreso y datos del usuario actual. No hay sesión en el servidor: el login devuelve un token
-// (JWT) y salir es descartarlo en el front. El registro siempre crea usuarios con rol 'usuario'.
+// Registro, ingreso, salida y datos del usuario actual. La sesión es la de PHP ($_SESSION, guardada en la base):
+// el navegador solo tiene la cookie HttpOnly con el id. El registro siempre crea usuarios con rol 'usuario'.
 class AuthController extends Controller
 {
     public const NOMBRE_MAX = 80;
@@ -60,7 +60,7 @@ class AuthController extends Controller
         return $this->json(['usuario' => $usuarios->find($id)->toArray()], 201);
     }
 
-    // POST /api/login {email, password} -> {token, tipo, expira_en, usuario}
+    // POST /api/login {email, password} -> {csrf, expira_en, usuario} y la cookie de sesión
     public function login(Request $request): Response
     {
         $this->exigirBase();
@@ -83,12 +83,22 @@ class AuthController extends Controller
         }
 
         $usuario = $encontrado[0];
-        return $this->json($this->app->auth->emitir($usuario) + ['usuario' => $usuario->toArray()]);
+        return $this->json($this->app->auth->iniciar($usuario, $request) + ['usuario' => $usuario->toArray()]);
     }
 
-    // GET /api/me (con token) -> {usuario}
+    // POST /api/logout -> 204. Destruye la sesión en el servidor y borra la cookie (JavaScript no puede: es HttpOnly)
+    public function logout(Request $request): Response
+    {
+        if ($this->app->dbConfigurada()) {
+            $this->app->auth->cerrar($request);
+        }
+        return Response::empty(204);
+    }
+
+    // GET /api/me (con sesión) -> {usuario, csrf}. El front lo usa para recuperar el token CSRF
     public function me(Request $request): Response
     {
-        return $this->json(['usuario' => $this->exigirUsuario()->toArray()]);
+        $usuario = $this->exigirUsuario();
+        return $this->json(['usuario' => $usuario->toArray(), 'csrf' => $this->app->auth->csrf($request)]);
     }
 }

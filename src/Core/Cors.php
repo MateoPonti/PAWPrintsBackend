@@ -36,13 +36,18 @@ class Cors
         if (!$this->permitido($origen)) {
             return [];
         }
+        if (in_array('*', $this->origenes, true)) {
+            return ['Access-Control-Allow-Origin' => '*', 'Vary' => 'Origin']; // con comodín el navegador no manda cookies
+        }
+        // Allow-Credentials: el front (en local, en otro puerto) puede mandar la cookie de sesión y recibirla
         return [
-            'Access-Control-Allow-Origin' => in_array('*', $this->origenes, true) ? '*' : (string) $origen,
+            'Access-Control-Allow-Origin' => (string) $origen,
+            'Access-Control-Allow-Credentials' => 'true',
             'Vary' => 'Origin',
         ];
     }
 
-    // Respuesta al pedido OPTIONS que el navegador manda antes de un POST con JSON o con token
+    // Respuesta al pedido OPTIONS que el navegador manda antes de un POST con JSON o con el token CSRF
     public function preflight(Request $request): Response
     {
         $respuesta = Response::empty(204);
@@ -51,7 +56,7 @@ class Cors
         }
         return $respuesta->withHeaders($this->cabeceras($request->origin()) + [
             'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Accept',
+            'Access-Control-Allow-Headers' => 'Content-Type, Accept, X-CSRF-Token',
             'Access-Control-Max-Age' => '86400',
         ]);
     }

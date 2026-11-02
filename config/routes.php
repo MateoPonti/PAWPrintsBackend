@@ -24,9 +24,10 @@ $router->get('/api/portadas/{id}', [PortadaController::class, 'show']);
 // Reservas (público): crea la reserva y avisa al personal por correo
 $router->post('/api/reservas', [ReservaController::class, 'store']);
 
-// Cuentas. El login devuelve un token que el front manda como "Authorization: Bearer <token>"
+// Cuentas. El login deja la cookie de sesión (HttpOnly) y devuelve el token CSRF para los POST con sesión
 $router->post('/api/registro', [AuthController::class, 'registro']);
 $router->post('/api/login', [AuthController::class, 'login']);
+$router->post('/api/logout', [AuthController::class, 'logout']);
 $router->get('/api/me', [AuthController::class, 'me']);
 
 // Alta de libros y subida de su portada: solo para usuarios con rol admin

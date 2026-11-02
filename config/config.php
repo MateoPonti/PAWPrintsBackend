@@ -21,11 +21,10 @@ return [
         'origins' => $env('FRONT_URL', 'http://localhost:5500,http://127.0.0.1:5500'),
     ],
 
-    // Token de acceso (JWT). JWT_SECRET es obligatorio para ingresar: mínimo 32 caracteres.
+    // Sesión de PHP ($_SESSION), guardada en la tabla sesiones de la base
     'auth' => [
-        'secret' => $env('JWT_SECRET', ''),
-        // Segundos de validez del token (por defecto 8 horas)
-        'ttl' => (int) $env('JWT_TTL', 28800),
+        // Segundos de validez de la sesión (por defecto 8 horas)
+        'ttl' => (int) $env('SESION_TTL', 28800),
     ],
 
     'log' => [

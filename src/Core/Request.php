@@ -14,6 +14,7 @@ class Request
         private array $query = [],
         private string $rawBody = '',
         private array $server = [],
+        private array $cookies = [],
     ) {
     }
 
@@ -28,6 +29,7 @@ class Request
             $_GET,
             (string) file_get_contents('php://input'),
             $_SERVER,
+            $_COOKIE,
         );
     }
 
@@ -104,22 +106,17 @@ class Request
         return $this->header('Origin');
     }
 
-    // Token del encabezado "Authorization: Bearer <token>", o null
-    public function bearerToken(): ?string
+    // Valor de una cookie del pedido, o null
+    public function cookie(string $nombre): ?string
     {
-        $cabecera = $this->header('Authorization') ?? ($this->server['REDIRECT_HTTP_AUTHORIZATION'] ?? null);
-        if ($cabecera === null && function_exists('apache_request_headers')) {
-            foreach (apache_request_headers() as $nombre => $valor) {
-                if (strtolower($nombre) === 'authorization') {
-                    $cabecera = $valor;
-                    break;
-                }
-            }
-        }
-        if (is_string($cabecera) && preg_match('/^Bearer\s+(\S+)$/i', trim($cabecera), $m) === 1) {
-            return $m[1];
-        }
-        return null;
+        $valor = $this->cookies[$nombre] ?? null;
+        return is_string($valor) ? $valor : null;
+    }
+
+    // Detrás de Render (y del proxy de Vercel) PHP recibe http; el protocolo real viene en X-Forwarded-Proto
+    public function esHttps(): bool
+    {
+        return ($this->server['HTTPS'] ?? '') === 'on' || $this->header('X-Forwarded-Proto') === 'https';
     }
 
     public function ip(): string
