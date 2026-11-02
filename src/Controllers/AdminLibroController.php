@@ -8,13 +8,13 @@ use Paw\Core\Response;
 use Paw\Models\LibroDbRepository;
 use Paw\Models\LibroValidator;
 
-// Alta de libros. Solo entran los usuarios con rol 'admin' (se consulta en la base en cada pedido).
+// Alta de libros. Pide el permiso 'libros.crear' (lo tiene el rol admin; se consulta en la base en cada pedido).
 class AdminLibroController extends Controller
 {
     // POST /api/admin/libros -> 201 {libro}
     public function store(Request $request): Response
     {
-        $this->exigirAdmin();
+        $this->exigirPermiso('libros.crear');
 
         $valores = LibroValidator::valores($request->allInput());
         $errores = LibroValidator::validar($valores);

@@ -120,8 +120,13 @@ Los errores tienen siempre la forma `{"error": "codigo", "mensaje": "...", "erro
 | `POST /api/login` | público | `email`, `password` | `{csrf, expira_en, usuario}` + cookie de sesión, o 422 con `mensaje` |
 | `POST /api/logout` | público | - | `204`: destruye la sesión en el servidor y borra la cookie |
 | `GET /api/me` | sesión | - | `{usuario, csrf}` o 401 |
-| `POST /api/admin/libros` | admin + CSRF | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
-| `POST /api/admin/portadas` | admin + CSRF | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
+| `POST /api/admin/libros` | `libros.crear` + CSRF | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
+| `POST /api/admin/portadas` | `libros.crear` + CSRF | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
+| `GET /api/admin/usuarios` | `usuarios.ver` | `q`, `rol`, `activo` (`1`/`0`), `page` | `{items, total, pagina, por_pagina, paginas}` |
+| `GET /api/admin/usuarios/{id}` | `usuarios.ver` | - | `{usuario}` con `activo` y `creado`, o 404 |
+| `PATCH /api/admin/usuarios/{id}` | `usuarios.editar` + CSRF | `nombre`, `rol`, `activo` (solo lo que cambia) | `{usuario}`, 422, o 409 si es sobre uno mismo (rol o baja) |
+| `DELETE /api/admin/usuarios/{id}` | `usuarios.editar` + CSRF | - | `204`: baja lógica (`activo = false`) |
+| `GET /api/admin/roles` | `usuarios.ver` | - | `{items: [{nombre, descripcion, permisos}]}` |
 | `GET /api/portadas/{id}` | público | `id` numérico | La imagen (no es JSON) o 404 |
 
 Códigos: 400 cuerpo inválido, 401 sin sesión o sesión vencida, 403 sin permisos o token CSRF incorrecto, 404 no existe, 405 método no permitido, 422 datos inválidos, 503 función no disponible (sin base de datos, base caída o falló el correo).
@@ -163,7 +168,19 @@ La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo,
 - La sesión dura `SESION_TTL` segundos (`expira_en` es esa cantidad).
 - **Salir** (`POST /api/logout`) hace los tres pasos: `$_SESSION = []`, cookie vencida y `session_destroy()`, que borra la fila de `sesiones`. El id deja de servir en el servidor aunque alguien lo hubiera copiado.
 - **CSRF:** como el navegador manda la cookie solo, los POST con sesión (`/api/admin/*`) exigen el header `X-CSRF-Token` con el token que devolvió el login (o `GET /api/me`). Se compara con `hash_equals`. Primera barrera: `SameSite=Strict`.
-- Si el usuario ya no existe o la sesión venció, los endpoints con sesión responden 401.
+- Si el usuario ya no existe, está dado de baja o la sesión venció, los endpoints con sesión responden 401. Un usuario dado de baja que intenta ingresar recibe 403 `cuenta_deshabilitada` (solo si la contraseña es correcta, para no revelar qué correos existen).
+
+### Roles y permisos
+
+Están en tablas (`roles`, `permisos`, `rol_permisos`) y `users.rol_id` apunta al rol. Los controladores piden **permisos**, no roles (`exigirPermiso('libros.crear')`); los permisos del rol se leen de la base en cada pedido, así un cambio de rol o una baja valen en el pedido siguiente. Para crear un rol nuevo alcanza con agregar filas en `rol_permisos`.
+
+| Rol | Permisos |
+|---|---|
+| `usuario` | ninguno (reservar es público) |
+| `personal` | `reservas.ver` (para el listado de pedidos del TP5) |
+| `admin` | `libros.crear`, `usuarios.ver`, `usuarios.editar` |
+
+El login y `GET /api/me` devuelven los permisos del usuario (`usuario.permisos`); el front los usa solo para mostrar u ocultar opciones.
 
 ### Portadas
 
@@ -186,10 +203,10 @@ El alta de libros del front permite arrastrar la tapa. El front la achica y la p
 Registrarse con `POST /api/registro` (o desde la pantalla de registro del front) y ejecutar en el SQL Editor de Neon:
 
 ```sql
-UPDATE users SET rol = 'admin' WHERE email = 'tu@email.com';
+UPDATE users SET rol_id = (SELECT id FROM roles WHERE nombre = 'admin') WHERE email = 'tu@email.com';
 ```
 
-Después, al ingresar de nuevo, el front muestra **Cargar libro**.
+Después, al ingresar de nuevo, el front muestra **Cargar libro**. Los demás roles los asigna ese admin con `PATCH /api/admin/usuarios/{id}`.
 
 ## Despliegue en Render
 

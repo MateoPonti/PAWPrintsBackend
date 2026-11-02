@@ -110,7 +110,8 @@ afirmar($r->status() === 400, 'JSON que no es un objeto: 400', $r);
 
 // Cuentas: sin base de datos no están disponibles
 foreach ([['POST', '/api/registro'], ['POST', '/api/login'], ['GET', '/api/me'], ['POST', '/api/admin/libros'],
-    ['POST', '/api/admin/portadas'], ['GET', '/api/portadas/1']] as [$m, $ruta]) {
+    ['POST', '/api/admin/portadas'], ['GET', '/api/portadas/1'], ['GET', '/api/admin/usuarios'], ['GET', '/api/admin/roles'],
+    ['PATCH', '/api/admin/usuarios/1'], ['DELETE', '/api/admin/usuarios/1']] as [$m, $ruta]) {
     $r = pedir($m, $ruta, [], $m === 'POST' ? [] : null);
     afirmar($r->status() === 503 && datos($r)['error'] === 'base_no_configurada', "$m $ruta sin base de datos: 503", $r);
 }

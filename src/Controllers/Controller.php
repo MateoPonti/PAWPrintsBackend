@@ -43,12 +43,13 @@ abstract class Controller
         return $usuario;
     }
 
-    // 401 si no inició sesión, 403 si no es admin. El rol se consulta en la base en cada pedido.
-    protected function exigirAdmin(): Usuario
+    // 401 si no inició sesión, 403 si su rol no tiene ninguno de los permisos pedidos.
+    // Los controladores piden permisos ('libros.crear'), no roles: los permisos de cada rol están en la base.
+    protected function exigirPermiso(string ...$permisos): Usuario
     {
         $usuario = $this->exigirUsuario();
-        if (!$usuario->esAdmin()) {
-            throw HttpException::forbidden('No tenés permisos para cargar libros.');
+        if (array_intersect($permisos, $this->app->permisos()) === []) {
+            throw HttpException::forbidden('No tenés permisos para hacer esto.');
         }
         return $usuario;
     }

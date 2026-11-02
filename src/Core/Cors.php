@@ -55,7 +55,7 @@ class Cors
             return $respuesta;
         }
         return $respuesta->withHeaders($this->cabeceras($request->origin()) + [
-            'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Methods' => 'GET, POST, PATCH, DELETE, OPTIONS',
             'Access-Control-Allow-Headers' => 'Content-Type, Accept, X-CSRF-Token',
             'Access-Control-Max-Age' => '86400',
         ]);

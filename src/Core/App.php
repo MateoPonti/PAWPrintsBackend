@@ -25,6 +25,8 @@ class App
     private ?LibroRepository $libros = null;
     private ?Usuario $usuario = null;
     private bool $usuarioCargado = false;
+    /** @var string[]|null */
+    private ?array $permisos = null;
 
     public function __construct(
         private string $rootDir,
@@ -84,7 +86,7 @@ class App
             : new LibroRepository($this->config->get('catalogo.data'));
     }
 
-    // Usuario de la sesión del pedido, o null (sin sesión, sesión vencida o usuario borrado)
+    // Usuario de la sesión del pedido, o null (sin sesión, sesión vencida, usuario borrado o dado de baja)
     public function usuario(): ?Usuario
     {
         if ($this->usuarioCargado) {
@@ -94,9 +96,22 @@ class App
 
         $id = $this->dbConfigurada() ? $this->auth->userId($this->request) : null;
         if ($id !== null) {
-            $this->usuario = (new UsuarioRepository($this->pdo()))->find($id);
+            $usuario = (new UsuarioRepository($this->pdo()))->find($id);
+            $this->usuario = $usuario !== null && $usuario->activo ? $usuario : null;
         }
         return $this->usuario;
+    }
+
+    // Permisos del usuario de la sesión según su rol (tablas roles, permisos y rol_permisos). Se leen
+    // de la base una vez por pedido: un cambio de rol o una baja surten efecto en el pedido siguiente.
+    /** @return string[] */
+    public function permisos(): array
+    {
+        $usuario = $this->usuario();
+        if ($usuario === null) {
+            return [];
+        }
+        return $this->permisos ??= (new UsuarioRepository($this->pdo()))->permisosDe($usuario->id);
     }
 
     // Los pedidos con sesión que cambian datos (todo lo que no es GET) exigen el token CSRF

@@ -8,14 +8,14 @@ use Paw\Core\Response;
 use Paw\Models\PortadaRepository;
 use Paw\Models\PortadaValidator;
 
-// Tapas de los libros. El alta (solo admin) recibe la imagen tal cual en el cuerpo del pedido,
+// Tapas de los libros. El alta (permiso libros.crear) recibe la imagen tal cual en el cuerpo del pedido,
 // con su Content-Type (image/jpeg, image/png o image/webp), sin multipart ni JSON.
 class PortadaController extends Controller
 {
     // POST /api/admin/portadas -> 201 {portada: {id, url}}
     public function store(Request $request): Response
     {
-        $this->exigirAdmin();
+        $this->exigirPermiso('libros.crear');
 
         $tipo = $request->contentType();
         $datos = $request->body();

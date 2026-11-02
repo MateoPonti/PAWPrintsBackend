@@ -9,17 +9,20 @@ class Usuario
         public readonly string $nombre,
         public readonly string $email,
         public readonly string $rol,
+        public readonly bool $activo = true,
+        public readonly string $creado = '',
     ) {
-    }
-
-    public function esAdmin(): bool
-    {
-        return $this->rol === 'admin';
     }
 
     // Forma del usuario en la API (nunca incluye la contraseña)
     public function toArray(): array
     {
         return ['id' => $this->id, 'nombre' => $this->nombre, 'email' => $this->email, 'rol' => $this->rol];
+    }
+
+    // Lo que ve el admin en la gestión de usuarios
+    public function paraAdmin(): array
+    {
+        return $this->toArray() + ['activo' => $this->activo, 'creado' => $this->creado];
     }
 }

@@ -60,7 +60,7 @@ class AuthController extends Controller
         return $this->json(['usuario' => $usuarios->find($id)->toArray()], 201);
     }
 
-    // POST /api/login {email, password} -> {csrf, expira_en, usuario} y la cookie de sesión
+    // POST /api/login {email, password} -> {csrf, expira_en, usuario (con permisos)} y la cookie de sesión
     public function login(Request $request): Response
     {
         $this->exigirBase();
@@ -82,8 +82,14 @@ class AuthController extends Controller
             throw new HttpException(422, 'El correo o la contraseña no son correctos.', 'credenciales_invalidas');
         }
 
+        // Recién con la contraseña correcta se dice que la cuenta está dada de baja (no revela qué correos existen)
         $usuario = $encontrado[0];
-        return $this->json($this->app->auth->iniciar($usuario, $request) + ['usuario' => $usuario->toArray()]);
+        if (!$usuario->activo) {
+            throw new HttpException(403, 'Tu cuenta está dada de baja. Si creés que es un error, escribinos.', 'cuenta_deshabilitada');
+        }
+        $sesion = $this->app->auth->iniciar($usuario, $request);
+        $permisos = (new UsuarioRepository($this->app->pdo()))->permisosDe($usuario->id);
+        return $this->json($sesion + ['usuario' => $usuario->toArray() + ['permisos' => $permisos]]);
     }
 
     // POST /api/logout -> 204. Destruye la sesión en el servidor y borra la cookie (JavaScript no puede: es HttpOnly)
@@ -95,10 +101,13 @@ class AuthController extends Controller
         return Response::empty(204);
     }
 
-    // GET /api/me (con sesión) -> {usuario, csrf}. El front lo usa para recuperar el token CSRF
+    // GET /api/me (con sesión) -> {usuario (con permisos), csrf}. El front lo usa para recuperar el token CSRF
     public function me(Request $request): Response
     {
         $usuario = $this->exigirUsuario();
-        return $this->json(['usuario' => $usuario->toArray(), 'csrf' => $this->app->auth->csrf($request)]);
+        return $this->json([
+            'usuario' => $usuario->toArray() + ['permisos' => $this->app->permisos()],
+            'csrf' => $this->app->auth->csrf($request),
+        ]);
     }
 }

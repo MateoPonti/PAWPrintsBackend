@@ -4,6 +4,7 @@
 // $router lo provee Paw\Core\App. Todas las respuestas son JSON, salvo las imágenes de las portadas.
 
 use Paw\Controllers\AdminLibroController;
+use Paw\Controllers\AdminUsuarioController;
 use Paw\Controllers\AuthController;
 use Paw\Controllers\CatalogoController;
 use Paw\Controllers\InfoController;
@@ -30,6 +31,13 @@ $router->post('/api/login', [AuthController::class, 'login']);
 $router->post('/api/logout', [AuthController::class, 'logout']);
 $router->get('/api/me', [AuthController::class, 'me']);
 
-// Alta de libros y subida de su portada: solo para usuarios con rol admin
+// Alta de libros y subida de su portada: permiso libros.crear (rol admin)
 $router->post('/api/admin/libros', [AdminLibroController::class, 'store']);
 $router->post('/api/admin/portadas', [PortadaController::class, 'store']);
+
+// Gestión de usuarios: permisos usuarios.ver y usuarios.editar (rol admin). La baja es lógica.
+$router->get('/api/admin/roles', [AdminUsuarioController::class, 'roles']);
+$router->get('/api/admin/usuarios', [AdminUsuarioController::class, 'index']);
+$router->get('/api/admin/usuarios/{id}', [AdminUsuarioController::class, 'show']);
+$router->add('PATCH', '/api/admin/usuarios/{id}', [AdminUsuarioController::class, 'update']);
+$router->add('DELETE', '/api/admin/usuarios/{id}', [AdminUsuarioController::class, 'destroy']);
