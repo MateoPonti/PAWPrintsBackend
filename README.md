@@ -115,13 +115,16 @@ Los errores tienen siempre la forma `{"error": "codigo", "mensaje": "...", "erro
 | `GET /` y `GET /api/health` | público | - | `{estado: "ok", ...}`. No tocan la base: sirven de health check. |
 | `GET /api/libros` | público | `genero`, `autor`, `precio_max`, `orden`, `page`, `per_page` | `{items, total, pagina, por_pagina, paginas}`. 404 si `page` supera `paginas`. |
 | `GET /api/libros/{id}` | público | `id` = slug | `{libro}` o 404 |
-| `POST /api/reservas` | público | `{nombre, email, telefono, items: [{libro, cantidad}]}` | `201 {reserva}`, 422 con errores o 503 si falla el correo |
+| `POST /api/reservas` | público | `{nombre, email, telefono, items: [{libro, cantidad}]}` | `201 {reserva}` (con `numero` si se guardó en la base), 422 con errores, o 503 si no hay base y falla el correo |
 | `POST /api/registro` | público | `nombre`, `email`, `password`, `password_confirm` | `201 {usuario}`, 422 con errores. No inicia sesión. |
 | `POST /api/login` | público | `email`, `password` | `{csrf, expira_en, usuario}` + cookie de sesión, o 422 con `mensaje` |
 | `POST /api/logout` | público | - | `204`: destruye la sesión en el servidor y borra la cookie |
 | `GET /api/me` | sesión | - | `{usuario, csrf}` o 401 |
 | `POST /api/admin/libros` | `libros.crear` + CSRF | `titulo`, `autor`, `genero`, `precio`, `resumen`, `descripcion`, `autor_bio`, `imagen_url` | `201 {libro}`, 401, 403 o 422 con errores |
 | `POST /api/admin/portadas` | `libros.crear` + CSRF | La imagen tal cual en el cuerpo, con `Content-Type: image/jpeg`, `image/png` o `image/webp` | `201 {portada: {id, url}}`, 401, 403 o 422 con `errores.portada` |
+| `GET /api/admin/openlibrary` | `libros.crear` | `q` = ISBN, o título y autor | `{items: [{clave, titulo, autor, anio, portada}]}` o 422 |
+| `GET /api/admin/openlibrary/obra` | `libros.crear` | `clave` = `/works/OL...W` | `{libro: {titulo, autor, descripcion, autor_bio, portada}}` o 404 |
+| `GET /api/admin/reservas` | `reservas.ver` | `q`, `page` | `{items, total, pagina, por_pagina, paginas}` |
 | `GET /api/admin/usuarios` | `usuarios.ver` | `q`, `rol`, `activo` (`1`/`0`), `page` | `{items, total, pagina, por_pagina, paginas}` |
 | `GET /api/admin/usuarios/{id}` | `usuarios.ver` | - | `{usuario}` con `activo` y `creado`, o 404 |
 | `PATCH /api/admin/usuarios/{id}` | `usuarios.editar` + CSRF | `nombre`, `rol`, `activo` (solo lo que cambia) | `{usuario}`, 422, o 409 si es sobre uno mismo (rol o baja) |
@@ -158,7 +161,22 @@ Las validaciones son las mismas que las del formulario del front. Las claves de 
 | `telefono` | Opcional. Si viene: entre 6 y 20 caracteres entre números, espacios, `+`, `-`, `(` y `)`. |
 | `items` | De 1 a 10 filas. Cada `libro` tiene que existir en el catálogo y cada `cantidad` es un entero de 1 a 10. |
 
-La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo, cantidad, precio}], total}}`. Si falla el envío del correo responde 503 y el detalle queda en el log.
+La respuesta 201 es `{reserva: {nombre, email, telefono, items: [{libro, titulo, cantidad, precio}], total, numero}}`.
+
+- **Con base configurada** la reserva se guarda en `reservas` y `reserva_items` dentro de una transacción, y **después** se manda el correo. `numero` es el id de la reserva. Si el correo falla, la reserva no se pierde: responde 201 igual, el error queda en el log y el pedido aparece en el listado del personal con `correo_enviado: false`.
+- **Sin base** (`DB_HOST` vacío) solo se manda el correo, como en el TP3: `numero` es `null` y, si el correo falla, responde 503.
+
+### Pedidos (personal)
+
+`GET /api/admin/reservas?q=&page=` (permiso `reservas.ver`) → `{items, total, pagina, por_pagina, paginas}`, de a 20 y del más nuevo al más viejo. `q` busca en el nombre o el correo. Cada pedido es `{id, nombre, email, telefono, total, correo_enviado, fecha, items: [{libro, titulo, autor, cantidad, precio}]}`; `precio` es el del día en que se reservó.
+
+### Open Library
+
+Con el permiso `libros.crear`:
+
+- `GET /api/admin/openlibrary?q=` → `{items: [{clave, titulo, autor, anio, portada}]}` (hasta 5). `q` es un ISBN (10 o 13 dígitos, con o sin guiones) o un texto de 3 a 100 caracteres.
+- `GET /api/admin/openlibrary/obra?clave=/works/OL...W` → `{libro: {titulo, autor, descripcion, autor_bio, portada}}`. 404 si la clave no es de una obra o no existe.
+- `POST /api/admin/libros` sin `imagen_url` busca la tapa en Open Library por título y autor. Si no hay o Open Library no responde, el libro se guarda igual, con la portada por defecto.
 
 ### Cuentas
 
@@ -177,8 +195,8 @@ Están en tablas (`roles`, `permisos`, `rol_permisos`) y `users.rol_id` apunta a
 | Rol | Permisos |
 |---|---|
 | `usuario` | ninguno (reservar es público) |
-| `personal` | `reservas.ver` (para el listado de pedidos del TP5) |
-| `admin` | `libros.crear`, `usuarios.ver`, `usuarios.editar` |
+| `personal` | `reservas.ver` (listado de pedidos) |
+| `admin` | `libros.crear`, `reservas.ver`, `usuarios.ver`, `usuarios.editar` |
 
 El login y `GET /api/me` devuelven los permisos del usuario (`usuario.permisos`); el front los usa solo para mostrar u ocultar opciones.
 
@@ -227,6 +245,100 @@ Cada reserva le llega por correo al personal. El envío usa la **API HTTP de Bre
 
 Como *Health Check Path* se puede usar `/api/health`. En el plan gratuito el servicio se duerme tras un rato sin pedidos y el primero tarda en responder; el front avisa que el servidor no respondió y ofrece reintentar.
 
+## TP5 - Programación Backend 2: consignas y respuestas
+
+Cada consigna con su enunciado y, abajo, qué hicimos y dónde está en el código. La consigna 8 (microdata) es del front: la respuesta completa está en el README del front, sección *TP5 - Microdata*.
+
+### 1. Listado y búsqueda sobre una base relacional
+
+> Modifique su aplicación para que el listado y la búsqueda de libros sea realizado sobre una base de datos relacional. Tenga en cuenta que la misma esté disponible en el servicio donde desplegó su aplicación en el trabajo práctico 3 o en algún otro servicio donde pueda desplegarla.
+
+- La base es **PostgreSQL en Neon**, la misma que usa la API publicada en Render.
+- `LibroDbRepository::search()` arma la consulta con `WHERE` (género, autor, precio máximo) y `ORDER BY` (relevancia, precio o título): el filtrado y el orden los hace la base, no PHP. `find()` busca el libro por su slug con `WHERE slug = :slug`.
+- La búsqueda por autor no distingue mayúsculas ni acentos ("garcia" encuentra "García"): se usa `lower(translate(autor, ...))` de Postgres.
+- Sin base configurada (`DB_HOST` vacío) la API sigue funcionando con `data/libros.json` (`LibroRepository`), con los mismos filtros. Los controladores no saben de dónde salen los libros.
+
+### 2. Persistir la reserva además de mandar el correo
+
+> Modifique su aplicación para que, además de enviarse un correo electrónico al personal, se persista la reserva en el sistema.
+
+- Tablas `reservas` (quién reservó, total, si salió el correo, fecha) y `reserva_items` (cada libro con su cantidad y el **precio del día** en que se reservó). Están en `database/schema.sql`.
+- `ReservaRepository::guardar()` guarda la reserva y sus libros en una **transacción**: si falla un libro no queda una reserva a medias (`rollBack`).
+- Orden en `ReservaController`: primero se guarda y después se manda el correo. Si el correo falla, la reserva no se pierde: queda con `correo_enviado = false` y el personal la ve en el listado.
+- La respuesta incluye el número de reserva, y el front se lo muestra al cliente.
+
+### 3. Listado de pedidos solo para el personal
+
+> Implementa un listado de pedidos que sea accesible solo por el personal de la empresa.
+
+- `GET /api/admin/reservas` (`AdminReservaController`) pide el permiso `reservas.ver`, que tienen los roles `personal` y `admin` (tabla `rol_permisos`). Sin sesión responde 401 y con otro rol, 403.
+- Pagina de a 20, del más nuevo al más viejo, y busca por nombre o correo de quien reservó.
+- En el front es la página `admin-reservas.html` ("Pedidos" en el menú, solo para quien tiene el permiso).
+
+### 4. Migrar las vistas a Twig
+
+> Migrar todas las vistas al motor de Templates Twig. En los casos que sea adecuado, utilizar la herencia y composición de la librería para mejorar la reutilización de vistas.
+
+**Acordado con el docente: no se implementa.** El back es una API que solo devuelve JSON y no tiene vistas; las páginas son HTML estático del repositorio del front, publicado aparte. Migrarlas a Twig obligaría a que el back sirva el HTML y a rehacer la arquitectura de las entregas 3 y 4.
+
+### 5. Inyección SQL
+
+> ¿Qué es un ataque de inyección SQL? ¿Cómo puede evitarse? Realice las modificaciones necesarias en su aplicación para protegerse de dichos ataques.
+
+**Qué es.** Pasa cuando la aplicación arma la consulta SQL pegando texto que manda el usuario. Si el texto trae comillas o palabras de SQL, deja de ser un dato y pasa a ser parte de la consulta. Por ejemplo, con
+
+```php
+$sql = "SELECT * FROM users WHERE email = '" . $_POST['email'] . "'";
+```
+
+y el correo `' OR '1'='1`, la consulta queda `... WHERE email = '' OR '1'='1'` y devuelve todos los usuarios. Así se pueden leer, cambiar o borrar datos, o entrar sin contraseña.
+
+**Cómo se evita.**
+
+1. **Sentencias preparadas con parámetros.** La consulta se manda a la base con lugares marcados (`:email`) y los datos van aparte. La base nunca los interpreta como SQL, traigan lo que traigan.
+2. Lo que no puede ir como parámetro (nombres de columnas, `ASC`/`DESC`) se elige de una **lista fija** del código, nunca del texto del usuario.
+3. Además: validar los datos y que el usuario de la base tenga solo los permisos que necesita.
+
+**En PawPrints.**
+
+- Todas las consultas usan `prepare()` y `execute()` de PDO con parámetros con nombre: `LibroDbRepository`, `ReservaRepository`, `UsuarioRepository`, `PortadaRepository`, `SesionDb` y `Auth`.
+- `Database::connect()` pone `PDO::ATTR_EMULATE_PREPARES => false`: la preparación la hace Postgres de verdad, no PHP armando el texto.
+- El orden del catálogo se elige de `LibroDbRepository::ORDENES`. Un `orden=DROP TABLE libros` se ignora y queda "relevancia".
+- En las búsquedas con `LIKE`, `Database::escaparLike()` escapa `%` y `_`, así buscar el autor `%` no trae todo el catálogo.
+- Se probó contra la base: `autor=' OR 1=1 --` da 0 resultados, igual que con el JSON.
+
+### 6. XSS
+
+> ¿Qué implica un ataque XSS? ¿Cómo puede evitarse? Realice las modificaciones necesarias en su aplicación para protegerse de dichos ataques.
+
+**Qué implica.** *Cross-Site Scripting*: alguien logra que el sitio muestre un texto suyo **como HTML**. Si ese texto trae un `<script>` (o un `<img onerror="...">`), el código corre en el navegador de otro usuario como si fuera del sitio: puede leer lo que la página muestra, hacer pedidos con la sesión de la víctima (por ejemplo, cargar libros si es admin) o cambiar la página para robar datos. Puede venir de un dato guardado (un libro con título `<script>...`) o de la URL.
+
+**Cómo se evita.**
+
+1. **Escapar todo lo que viene de afuera al mostrarlo**, según dónde va (texto, atributo, URL). En JavaScript: `textContent` en lugar de `innerHTML`.
+2. No ejecutar texto como código y no aceptar archivos que puedan traer scripts (SVG, HTML).
+3. Defensas extra: una *Content Security Policy* que solo permita scripts del propio sitio, y cookies `HttpOnly` para que un script no pueda leer la sesión.
+
+**En PawPrints.**
+
+- **Front:** todo el HTML dinámico se arma con `el()` (`js/servicios/dom.js`), que pone los textos con `textContent` o `createTextNode` y nunca usa `innerHTML`. Un título `<script>alert(1)</script>` se ve como texto.
+- **Content-Security-Policy** en el `vercel.json` del front: `script-src 'self'` (sin scripts en línea ni de otros sitios), `object-src 'none'` y `frame-ancestors 'none'`. Aunque se colara HTML, un `<script>` o un `onerror` no correrían.
+- **Back:** la API responde JSON (`application/json`) con `X-Content-Type-Options: nosniff`, así el navegador no lo interpreta como HTML. Las portadas subidas se validan por su contenido y SVG no se acepta.
+- **Sesión:** cookie `HttpOnly`, `Secure` y `SameSite=Strict`. Un script no puede leerla, y los POST con sesión piden además el token CSRF.
+
+### 7. Open Library
+
+> Generar la conexión a la API de Open Library para precargar los datos del libro nuevo, de tal manera que se "autorellene" el formulario de carga de libro implementado en el trabajo anterior con los datos conseguidos a través de la API. Adicionalmente, al momento de persistir un libro, si desde el formulario no se especificó una imagen de su tapa, debe recuperarse una desde la API.
+
+- La conexión está en `Models/OpenLibrary.php`, con las funciones nativas de PHP (como el correo, sin cURL ni librerías) y un `User-Agent` propio, como pide Open Library. El front no llama a Open Library directamente: pasa por la API, así la conexión está en un solo lugar.
+- **Autorrelleno:** en `admin-libro.html` se busca por ISBN, o por título y autor (`GET /api/admin/openlibrary`, que usa `search.json`). Al elegir un resultado, `GET /api/admin/openlibrary/obra` trae la obra (`/works/...json`) y su autor (`/authors/...json`), y el formulario se completa con título, autor, descripción, resumen, biografía y tapa. Solo se aceptan claves `/works/OL...W`: nunca se arma una dirección con lo que mandó el usuario.
+- **Tapa al guardar:** si el alta llega sin imagen, `AdminLibroController` busca la tapa por título y autor (`OpenLibrary::tapaPara()`) y guarda la dirección de `covers.openlibrary.org`. Si no hay tapa o Open Library no responde, el libro se guarda igual, con la portada por defecto: el alta nunca falla por Open Library.
+- Pruebas: `php tests/openlibrary.php`, con un HTTP falso.
+
+### 8. Microdata
+
+Ver el README del front, sección *TP5 - Microdata*.
+
 ## Pruebas
 
 Después de `composer install`:
@@ -235,6 +347,7 @@ Después de `composer install`:
 php tests/catalogo.php   # filtrado y orden del catálogo
 php tests/reserva.php    # validaciones de la reserva y aviso por correo (con un HTTP falso)
 php tests/libro.php      # validaciones del alta de libros
+php tests/openlibrary.php # conexión con Open Library (con un HTTP falso, sin Internet)
 php tests/portada.php    # validación de las portadas subidas
 php tests/cors.php       # orígenes permitidos
 php tests/api.php        # la API completa, sin servidor, base ni correos reales
@@ -242,4 +355,4 @@ php tests/api.php        # la API completa, sin servidor, base ni correos reales
 
 ## Versiones
 
-Usamos versionado semántico en el archivo `VERSION` y un tag de git por entrega: `tp1` es la 0.1.0, `tp2` la 0.2.0, `Entrega_3` la 0.3.0 y `Entrega_4` la 0.4.0.
+Usamos versionado semántico en el archivo `VERSION` y un tag de git por entrega: `tp1` es la 0.1.0, `tp2` la 0.2.0, `Entrega_3` la 0.3.0, `Entrega_4` la 0.4.0 y `Entrega_5` la 0.5.0.

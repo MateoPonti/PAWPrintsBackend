@@ -2,8 +2,8 @@
 
 namespace Paw\Models;
 
-// Capa de persistencia de los libros. Por ahora lee data/libros.json; en el próximo TP
-// se reemplaza por una base de datos sin tocar los controladores, que solo usan estos métodos.
+// Capa de persistencia de los libros desde data/libros.json (se usa cuando no hay base configurada).
+// Con base, App usa LibroDbRepository, que tiene los mismos métodos: los controladores no cambian.
 class LibroRepository
 {
     private ?array $libros = null;
@@ -58,7 +58,7 @@ class LibroRepository
         return $libros;
     }
 
-    private static function normalizarTexto(string $texto): string
+    protected static function normalizarTexto(string $texto): string
     {
         // También admite acentos Unicode descompuestos, sin exigir extensiones de PHP.
         $texto = preg_replace('/\p{Mn}+/u', '', $texto) ?? $texto;

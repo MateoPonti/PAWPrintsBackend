@@ -37,6 +37,7 @@ ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO rol_permisos (rol_id, permiso_id)
 SELECT r.id, p.id FROM (VALUES
   ('personal', 'reservas.ver'),
+  ('admin',    'reservas.ver'),
   ('admin',    'libros.crear'),
   ('admin',    'usuarios.ver'),
   ('admin',    'usuarios.editar')
@@ -83,6 +84,30 @@ CREATE TABLE IF NOT EXISTS libros (
   imagen_url  VARCHAR(255),                   -- vacío = portada por defecto (img/placeholder.svg)
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+-- Reservas hechas desde el formulario (TP5). Se guardan antes de mandar el correo al personal, así un
+-- correo que no sale no pierde la reserva: queda en el listado de pedidos con correo_enviado = false.
+CREATE TABLE IF NOT EXISTS reservas (
+  id             INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  nombre         VARCHAR(100) NOT NULL,
+  email          VARCHAR(254) NOT NULL,
+  telefono       VARCHAR(20),                 -- opcional
+  total          INTEGER      NOT NULL,       -- suma de cantidad x precio, en pesos
+  correo_enviado BOOLEAN      NOT NULL DEFAULT false,
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Libros de cada reserva. precio = el precio del libro el día que se reservó (si después cambia, el pedido no cambia).
+CREATE TABLE IF NOT EXISTS reserva_items (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  reserva_id INTEGER  NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
+  libro_id   INTEGER  NOT NULL REFERENCES libros(id),
+  cantidad   SMALLINT NOT NULL CHECK (cantidad BETWEEN 1 AND 10),
+  precio     INTEGER  NOT NULL CHECK (precio > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reserva_items_reserva ON reserva_items (reserva_id);
 
 -- Tapas subidas desde el alta de libros (arrastrar y soltar). Se guardan en la base y no en disco
 -- porque en Render el disco se borra en cada despliegue. libros.imagen_url apunta a /api/portadas/{id}.
