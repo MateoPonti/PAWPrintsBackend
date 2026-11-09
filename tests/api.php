@@ -97,6 +97,7 @@ afirmar($r->status() === 405 && isset($r->headers()['Allow']), 'Método no permi
 $reserva = ['nombre' => 'Ana Pérez', 'email' => 'ana@mail.com', 'telefono' => '', 'items' => [['libro' => 'rayuela', 'cantidad' => 2]]];
 $r = pedir('POST', '/api/reservas', [], $reserva);
 afirmar($r->status() === 201 && datos($r)['reserva']['email'] === 'ana@mail.com' && datos($r)['reserva']['items'][0]['cantidad'] === 2, 'Reserva válida: 201', $r);
+afirmar(array_key_exists('numero', datos($r)['reserva']) && datos($r)['reserva']['numero'] === null, 'Reserva sin base: no tiene número (solo se manda el correo)', $r);
 
 $r = pedir('POST', '/api/reservas', [], ['nombre' => '', 'email' => 'x', 'items' => [['libro' => 'no-existe', 'cantidad' => 99]]]);
 $e = datos($r)['errores'] ?? [];
@@ -111,7 +112,8 @@ afirmar($r->status() === 400, 'JSON que no es un objeto: 400', $r);
 // Cuentas: sin base de datos no están disponibles
 foreach ([['POST', '/api/registro'], ['POST', '/api/login'], ['GET', '/api/me'], ['POST', '/api/admin/libros'],
     ['POST', '/api/admin/portadas'], ['GET', '/api/portadas/1'], ['GET', '/api/admin/usuarios'], ['GET', '/api/admin/roles'],
-    ['PATCH', '/api/admin/usuarios/1'], ['DELETE', '/api/admin/usuarios/1']] as [$m, $ruta]) {
+    ['PATCH', '/api/admin/usuarios/1'], ['DELETE', '/api/admin/usuarios/1'], ['GET', '/api/admin/reservas'],
+    ['GET', '/api/admin/openlibrary'], ['GET', '/api/admin/openlibrary/obra']] as [$m, $ruta]) {
     $r = pedir($m, $ruta, [], $m === 'POST' ? [] : null);
     afirmar($r->status() === 503 && datos($r)['error'] === 'base_no_configurada', "$m $ruta sin base de datos: 503", $r);
 }
