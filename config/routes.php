@@ -4,10 +4,12 @@
 // $router lo provee Paw\Core\App. Todas las respuestas son JSON, salvo las imágenes de las portadas.
 
 use Paw\Controllers\AdminLibroController;
+use Paw\Controllers\AdminReservaController;
 use Paw\Controllers\AdminUsuarioController;
 use Paw\Controllers\AuthController;
 use Paw\Controllers\CatalogoController;
 use Paw\Controllers\InfoController;
+use Paw\Controllers\OpenLibraryController;
 use Paw\Controllers\PortadaController;
 use Paw\Controllers\ReservaController;
 
@@ -22,7 +24,7 @@ $router->get('/api/libros/{id}', [CatalogoController::class, 'show']);
 // Portadas subidas desde el alta de libros (público: las usa el <img> del catálogo)
 $router->get('/api/portadas/{id}', [PortadaController::class, 'show']);
 
-// Reservas (público): crea la reserva y avisa al personal por correo
+// Reservas (público): guarda la reserva y avisa al personal por correo
 $router->post('/api/reservas', [ReservaController::class, 'store']);
 
 // Cuentas. El login deja la cookie de sesión (HttpOnly) y devuelve el token CSRF para los POST con sesión
@@ -34,6 +36,13 @@ $router->get('/api/me', [AuthController::class, 'me']);
 // Alta de libros y subida de su portada: permiso libros.crear (rol admin)
 $router->post('/api/admin/libros', [AdminLibroController::class, 'store']);
 $router->post('/api/admin/portadas', [PortadaController::class, 'store']);
+
+// Autocompletar el alta con Open Library (mismo permiso libros.crear). Si el alta llega sin tapa, el back busca una ahí.
+$router->get('/api/admin/openlibrary', [OpenLibraryController::class, 'buscar']);
+$router->get('/api/admin/openlibrary/obra', [OpenLibraryController::class, 'obra']);
+
+// Listado de pedidos (reservas) para el personal: permiso reservas.ver (roles personal y admin)
+$router->get('/api/admin/reservas', [AdminReservaController::class, 'index']);
 
 // Gestión de usuarios: permisos usuarios.ver y usuarios.editar (rol admin). La baja es lógica.
 $router->get('/api/admin/roles', [AdminUsuarioController::class, 'roles']);
